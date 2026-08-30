@@ -9,10 +9,12 @@ namespace soma {
 
 class SynapseEngine {
 public:
+    // apply 统一 Linear 和 Spatial 两条热路径，并通过回调写入 Soma SoA。
     template <typename Fn>
     static std::uint64_t apply(const LayerWeights& weights, std::uint64_t source_neuron,
                                float value, std::uint64_t destination_neurons, Fn&& update) {
         if (weights.op == LayerOp::Linear) {
+            // source-major [Cin,Cout] 让一个 source spike 顺序读取一整行权重。
             const auto source_neurons = weights.dense_weight.size() / destination_neurons;
             if (source_neuron >= source_neurons) throw std::runtime_error("dense source neuron 越界");
             const auto base = source_neuron * destination_neurons;
@@ -26,4 +28,3 @@ public:
 };
 
 }  // namespace soma
-

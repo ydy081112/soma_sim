@@ -28,6 +28,7 @@ struct TimestepStats {
 };
 
 struct BreakdownStats {
+    // 这些是所有事件的硬件 latency 累加，不等于关键路径的 hw_end_time。
     SimTime pe_inject_hw_latency = 0;
     SimTime pe_compute_hw_latency = 0;
     SimTime noc_traversal_hw_latency = 0;
@@ -47,6 +48,7 @@ struct EnergyStats {
 
 class Statistics {
 public:
+    // host latency 衡量模拟器运行性能，hardware latency 衡量被模拟架构性能。
     Statistics(const MappingConfig& mapping, const HardwareConfig& hardware);
 
     void record_data(std::size_t layer, std::uint32_t timestep, std::uint64_t updates,

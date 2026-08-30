@@ -6,6 +6,7 @@
 namespace soma {
 
 Port RouteGeometry::output_port(std::uint32_t source, std::uint32_t destination) const {
+    // Router id 使用 row-major 编码；这里只接受 Manhattan 相邻的一跳。
     const auto sr = row(source);
     const auto sc = col(source);
     const auto dr = row(destination);
@@ -18,6 +19,7 @@ Port RouteGeometry::output_port(std::uint32_t source, std::uint32_t destination)
 }
 
 void RouteGeometry::validate(const StaticRoute& route) const {
+    // 静态 route 在使用前校验，非法跨跳不会被 runtime 默默修正。
     for (const auto router : route.routers) {
         if (router >= rows_ * cols_) throw std::runtime_error("static route router 越界");
     }
@@ -38,4 +40,3 @@ std::string RouteGeometry::to_string(Port port) {
 }
 
 }  // namespace soma
-

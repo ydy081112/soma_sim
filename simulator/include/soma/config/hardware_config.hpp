@@ -9,6 +9,7 @@
 namespace soma {
 
 struct EnergyConfig {
+    // 全部能耗使用 pJ，按事件次数累计；这里不包含 leakage 的时间积分。
     double router_hop_pj = 0.0;
     double link_hop_pj = 0.0;
     double north_link_pj = 0.0;
@@ -25,7 +26,9 @@ struct EnergyConfig {
 };
 
 struct HardwareConfig {
+    // hardware latency 与 host latency 严格分离；所有硬件时间在加载后均为整数 ps。
     std::string name;
+    std::string execution_mode;
     double frequency_mhz = 1'000.0;
     SimTime hw_cycle_time_ps = 1'000;
 
@@ -55,6 +58,7 @@ struct HardwareConfig {
         bool receive_ack = false;
         bool receive_credit = false;
 
+        // req+ack 同时存在时按异步握手资源占用建模。
         bool asynchronous() const { return send_req && receive_ack; }
         SimTime router_hw_latency() const {
             return input_queue_hw_latency + route_compute_hw_latency +
@@ -85,6 +89,9 @@ struct HardwareConfig {
 
     EnergyConfig energy;
 
+    bool timestep_synchronization() const {
+        return execution_mode == "timestep_synchronization";
+    }
     static HardwareConfig load(const std::string& path);
     void validate() const;
 };

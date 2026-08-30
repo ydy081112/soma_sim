@@ -41,7 +41,8 @@ ctest --test-dir build --output-on-failure
 - `mapping.yaml` 给出 layer/partition 到 PE/Core/Router 的映射和完整静态 router 序列。
 - `weights.npz` 使用无 pickle 的 NumPy 数组。Conv 权重为 `[Cin,Kh,Kw,Cout]`，Linear 为 `[Cin,Cout]`，并带 `plan_pattern_id`、`plan_dst_base`、`pattern_ptr`、`pattern_dst_offset`、`pattern_weight_offset`。
 - neuron id 使用 spatial-major：`(y * W + x) * C + channel`。
-- `input_spike.csv` 的 `generated_time` 是物理仿真时间，`timestep` 是 rate coding 的逻辑步。
+- `hardware.yaml` 的 `architecture.execution_mode` 控制执行语义；当前 Loihi-style 配置使用 `timestep_synchronization`。
+- `input_spike.csv` 的逻辑 `timestep` 从 1 开始；同步模式下 `generated_time/current_time` 均写 0，实际硬件时间由 simulator 在逐 timestep 注入时生成。
 
 用原始 CIFAR-10 pickle 或项目提供的 sample NPZ 生成 rate-coded 输入：
 

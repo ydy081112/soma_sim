@@ -6,6 +6,7 @@
 namespace soma {
 
 void SpatialTemplate::validate(std::size_t source_neurons, std::size_t destination_neurons) const {
+    // 完整遍历只发生在启动阶段，换取事件热路径中无需重复边界判断。
     if (cin == 0 || cout == 0) throw std::runtime_error("SpatialTemplate cin/cout 必须为正");
     if (source_neurons % cin != 0 || plan_pattern_id.size() != source_neurons / cin ||
         plan_dst_base.size() != source_neurons / cin) {
@@ -21,6 +22,7 @@ void SpatialTemplate::validate(std::size_t source_neurons, std::size_t destinati
             throw std::runtime_error("SpatialTemplate pattern id 越界");
         }
     }
+    // 组合 plan base、pattern offset 和 weight offset，检查每种实际寻址都合法。
     for (std::size_t source_spatial = 0; source_spatial < plan_pattern_id.size(); ++source_spatial) {
         const auto pattern = static_cast<std::size_t>(plan_pattern_id[source_spatial]);
         for (auto entry = pattern_ptr[pattern]; entry < pattern_ptr[pattern + 1]; ++entry) {
@@ -43,4 +45,3 @@ void SpatialTemplate::validate(std::size_t source_neurons, std::size_t destinati
 }
 
 }  // namespace soma
-

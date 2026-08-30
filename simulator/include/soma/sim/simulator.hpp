@@ -11,6 +11,7 @@
 #include "soma/sim/stats.hpp"
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -50,8 +51,10 @@ private:
     std::vector<std::unique_ptr<Core>> cores_;
     std::vector<BufferResource> injection_ports_;
     Statistics stats_;
+    std::map<std::uint32_t, std::vector<std::size_t>> input_by_timestep_;
 
-    void load_input_queue();
+    void prepare_input_timesteps();
+    void inject_timestep(std::uint32_t timestep, SimTime hw_start_time);
     void process_data(Spike& spike);
     void process_bias(Spike& spike);
     void process_drain(Spike& spike);

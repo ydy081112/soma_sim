@@ -1,6 +1,7 @@
 # 参数取自 SANA-FE arch/loihi_large_vgg.yaml；名称只作 trace，不参与 C++ 微架构选择。
 architecture:
   name: reference_large_mesh
+  execution_mode: timestep_synchronization
   frequency_mhz: 1000
   technology: 14nm
   voltage_v: 0.9

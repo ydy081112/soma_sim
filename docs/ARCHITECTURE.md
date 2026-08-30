@@ -2,7 +2,9 @@
 
 一次 data spike 的路径固定为：virtual/physical source core 的 axon-out、mapping 静态 route、destination input buffer、synapse SRAM、Spatial Pattern Template 累加、SoA soma state。Router 不是对象；`router_id * 5 + output_port` 直接索引 output/link 两张 `SimTime` 数组。
 
-队列只按 `(generated_time, sequence_id)` 排序。`generated_time/current_time` 是目标硬件时间轴上的 timestamp；`current_time` 在该 spike 穿过资源时单调增加，新生成的 spike 以完成时刻重新入队。硬件服务/传播/拥塞 duration 统一称为 `hardware_latency`，所有配置值在启动时变为 ps，因此热路径没有单位或浮点时间换算。
+全局队列的排序语义由 `hardware.yaml` 的 `architecture.execution_mode` 控制。当前 Loihi-style 配置启用 `timestep_synchronization`，队列按 `(timestep, generated_time, sequence_id)` 排序；一个 timestep 的 input、Bias、SomaDrain、NoC 和后继 Data 事件全部排空后，才从实际完成时刻注入下一个 timestep。所有派生事件继承源 spike 的逻辑 timestep，因此不会跨过 barrier。
+
+同步模式的 input CSV 只保存从 1 开始的逻辑 timestep，`generated_time/current_time` 统一为 0，不再用预写的绝对时间隔离 timestep。运行时 `generated_time/current_time` 才表示目标硬件时间轴上的 timestamp；`current_time` 在 spike 穿过资源时单调增加，新生成的 spike 以完成时刻重新入队。硬件服务/传播/拥塞 duration 统一称为 `hardware_latency`，所有配置值在启动时变为 ps，因此热路径没有单位或浮点时间换算。现阶段只实现该执行模式，但排序器和硬件配置的边界保留了后续无 barrier 架构采用其他时间语义的空间。
 
 主机执行事件循环所花的 wall-clock duration 统一称为 `host_latency`，不得与 `hardware_latency` 相加或互相替代。对外 JSON/CSV 使用完整名称；C++ 热路径使用 `hw_*` 简写。
 

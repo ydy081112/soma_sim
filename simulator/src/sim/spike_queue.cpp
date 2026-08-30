@@ -4,7 +4,10 @@
 
 namespace soma {
 
+SpikeQueue::SpikeQueue(bool timestep_first) : queue_(Later{timestep_first}) {}
+
 std::uint64_t SpikeQueue::push(Spike spike) {
+    // sequence_id 在入队时统一分配，为同 generated_time 的事件提供稳定顺序。
     spike.sequence_id = next_sequence_++;
     const auto sequence = spike.sequence_id;
     queue_.push(std::move(spike));
@@ -19,4 +22,3 @@ Spike SpikeQueue::pop() {
 }
 
 }  // namespace soma
-

@@ -17,6 +17,7 @@ std::string trim(std::string value) {
 }
 
 std::vector<std::string> split_csv(const std::string& line) {
+    // 处理引号和双引号转义，避免 route/debug 字段中的逗号破坏列对齐。
     std::vector<std::string> fields;
     std::string current;
     bool quoted = false;
@@ -50,7 +51,9 @@ InputSpikeFile load_input_spikes_csv(const std::string& path) {
     const auto header = split_csv(line);
     std::unordered_map<std::string, std::size_t> column;
     for (std::size_t i = 0; i < header.size(); ++i) column.emplace(header[i], i);
-    for (const auto* required : {"generated_time", "spike_id", "layer_id", "src_neuron", "value"}) {
+    // src/dst router 等 trace 列是可选调试信息，routing 仍只读取 mapping.yaml。
+    for (const auto* required : {
+             "generated_time", "spike_id", "timestep", "layer_id", "src_neuron", "value"}) {
         if (column.find(required) == column.end()) throw std::runtime_error("CSV 缺少列: " + std::string(required));
     }
     auto field = [&](const std::vector<std::string>& row, const std::string& name) -> const std::string& {
@@ -73,9 +76,11 @@ InputSpikeFile load_input_spikes_csv(const std::string& path) {
             record.layer_id = field(row, "layer_id");
             record.source_neuron = std::stoull(field(row, "src_neuron"));
             record.value = std::stof(field(row, "value"));
-            const auto timestep = column.find("timestep");
-            record.timestep = timestep == column.end() || timestep->second >= row.size() || row[timestep->second].empty()
-                                  ? 0U : static_cast<std::uint32_t>(std::stoul(row[timestep->second]));
+            record.timestep = static_cast<std::uint32_t>(std::stoul(field(row, "timestep")));
+            if (record.timestep == 0) {
+                throw std::runtime_error("timestep 必须从 1 开始");
+            }
+            result.last_timestep = std::max(result.last_timestep, record.timestep);
             const auto expected = column.find("expected_output");
             if (expected != column.end() && expected->second < row.size() && !row[expected->second].empty()) {
                 const int value = std::stoi(row[expected->second]);
@@ -89,11 +94,12 @@ InputSpikeFile load_input_spikes_csv(const std::string& path) {
             throw std::runtime_error("CSV 行 " + std::to_string(line_number) + ": " + error.what());
         }
     }
+    if (result.spikes.empty()) throw std::runtime_error("input spike CSV 没有 spike");
+    // 逻辑 timestep 是同步注入的分组键；同 timestep 内仍保留 CSV 原始顺序。
     std::stable_sort(result.spikes.begin(), result.spikes.end(), [](const auto& lhs, const auto& rhs) {
-        return lhs.generated_time < rhs.generated_time;
+        return lhs.timestep < rhs.timestep;
     });
     return result;
 }
 
 }  // namespace soma
-

@@ -9,6 +9,7 @@ namespace soma::yaml {
 namespace {
 
 struct Line {
+    // 词法阶段先保留缩进和原始行号，递归解析时无需再次扫描文件。
     int indent = 0;
     std::size_t number = 0;
     std::string text;
@@ -34,6 +35,7 @@ std::string unquote(std::string value) {
 }
 
 std::size_t find_mapping_colon(const std::string& text) {
+    // 引号或 flow collection 内的冒号属于标量内容，不能被当成 map 分隔符。
     bool single = false;
     bool dual = false;
     int brackets = 0;
@@ -59,6 +61,7 @@ std::vector<Line> read_lines(const std::string& path) {
     while (std::getline(input, raw)) {
         ++number;
         if (!raw.empty() && raw.back() == '\r') raw.pop_back();
+        // 仅删除引号外的注释，避免截断包含 '#' 的名称或路径。
         bool single = false;
         bool dual = false;
         std::size_t comment = std::string::npos;
@@ -107,6 +110,7 @@ void parse_map_entry(Node& result, const std::vector<Line>& lines, std::size_t& 
 }
 
 Node parse_block(const std::vector<Line>& lines, std::size_t& pos, int indent) {
+    // 同一缩进层只能是一种容器；更深缩进由递归调用消费。
     if (pos >= lines.size()) return Node{};
     const bool sequence = lines[pos].text.rfind("-", 0) == 0 &&
                           (lines[pos].text.size() == 1 || lines[pos].text[1] == ' ');
@@ -138,6 +142,7 @@ Node parse_block(const std::vector<Line>& lines, std::size_t& pos, int indent) {
 
         Node map_item = Node::map();
         parse_map_entry(map_item, lines, pos, indent, rest, line.number);
+        // “- id: x” 后面的缩进字段仍属于同一个 list item，需要合并进该 map。
         if (pos < lines.size() && lines[pos].indent > indent) {
             const int child_indent = lines[pos].indent;
             Node tail = parse_block(lines, pos, child_indent);

@@ -7,6 +7,7 @@
 namespace soma {
 
 WeightStore WeightStore::load(const std::string& path, const MappingConfig& mapping) {
+    // 数组名称由 mapping.weight_prefix 拼出，避免把模型层名硬编码进 runtime。
     const auto archive = NpzArchive::load(path);
     WeightStore store;
     for (const auto& layer : mapping.layers) {
@@ -20,14 +21,17 @@ WeightStore WeightStore::load(const std::string& path, const MappingConfig& mapp
         if (!weights.bias.empty() && weights.bias.size() != layer.output_channels) {
             throw std::runtime_error(layer.id + ": bias shape 不匹配");
         }
-
+        // linear
         if (layer.op == LayerOp::Linear) {
+            // Linear 按 [Cin,Cout] 保存，固定 source 后整段 Cout 连续。
             const auto& array = archive.at(prefix + "_weight");
             weights.dense_weight = array.as_f32();
             if (weights.dense_weight.size() != layer.source_neurons * layer.neurons) {
                 throw std::runtime_error(layer.id + ": dense [Cin,Cout] weight shape 不匹配");
             }
+        // conv
         } else {
+            // 下面的 weights.spatial 是从 weights.npz 读出来
             weights.spatial.cin = layer.input_channels;
             weights.spatial.cout = layer.output_channels;
             weights.spatial.channelwise = layer.channelwise;

@@ -20,7 +20,7 @@
 ## 实现约束
 
 - 仿真时间统一使用 `SimTime = std::uint64_t`，单位为 ps；配置中的时间只在加载时转换一次。
-- 全局队列按 `(generated_time, sequence_id)` 稳定排序；主循环一次只消费一个事件。
+- timestep synchronization 模式下全局队列按 `(timestep, generated_time, sequence_id)` 稳定排序；其他执行语义仍可使用硬件时间优先。主循环一次只消费一个事件。
 - 输入由 virtual input PE/source neuron 注入，route 的唯一真值来自 `mapping.yaml`，CSV route 字段仅用于 trace。
 - NoC 使用紧凑资源表维护 router output/link 可用时刻，不创建 per-router 事件对象。
 - 神经元状态采用 SoA 连续数组，不创建 per-neuron C++ 对象。

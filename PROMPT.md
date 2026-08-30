@@ -8,11 +8,11 @@
 2. /compiler/mapping_output/mapping.yaml：layer/partition 到 PE/Core 的 mapping，以及静态 NoC route。这个参照前续版本的/home/ydy/compiler/SNN-HW-Sim/compiler/layer-to-pe/mapping_mlp4.yaml这个文件去构建，目前还没有编译栈先根据要求你来构建
 3. /input/weights.npz：使用 Spatial Pattern Template + source-major weight，不展开 neuron-to-neuron connections。Conv 权重布局 [Cin,Kh,Kw,Cout]，运行时使用 plan_pattern_id / plan_dst_base / pattern_ptr / pattern_dst_offset / pattern_weight_offset。代码已经写好，放在/home/ydy/compiler/soma_sim/compiler/connectivity/vgg_spatial_template_compiler.py，你可以根据项目具体细节更改
 4. /input/input_spike.csv：由数据集编码生成的输入 spike，这个版本你先用cifar10的一张图片把他转换成这个.csv。需要包含：
-generated_time, current_time, spike_id, layer_id, src_neuron, src_pe, src_router, dst_pe, dst_router, value等等。具体你可以根据模拟器的代码逻辑来。src_router/dst_router/route 原则上由 mapping.yaml 和 routing runtime 决定，CSV 中即使出现也仅作为 debug/trace 字段，不能成为 routing 的唯一真值来源。第一版 CIFAR10 input encoder 使用可配置 rate coding。
+generated_time, current_time, spike_id, timestep, layer_id, src_neuron, src_pe, src_router, dst_pe, dst_router, value等等。逻辑 timestep 从 1 开始；timestep synchronization 模式下 CSV 的 generated_time/current_time 均为 0，实际硬件时间由 simulator 注入时生成。src_router/dst_router/route 原则上由 mapping.yaml 和 routing runtime 决定，CSV 中即使出现也仅作为 debug/trace 字段，不能成为 routing 的唯一真值来源。第一版 CIFAR10 input encoder 使用可配置 rate coding。
 # 核心仿真机制：
 - 先实现单线程，一次循环只处理一个 spike。
 - 输入 spike 采用 SANA-FE 风格的 virtual input/source core 抽象：外部输入 spike 由映射在 virtual input PE 上的 source neuron 产生，然后通过 axon-out 进入 NoC
-- 一个全局 SpikeQueue，按 (generated_time, sequence_id) 排序。
+- 一个全局 SpikeQueue；timestep synchronization 模式按 (timestep, generated_time, sequence_id) 排序，并完整排空当前 timestep 后再注入下一步。排序和注入语义由 hardware config 的 execution_mode 控制，不能把架构名称写死。
 - 每次取最早的 spike，从 source PE 沿 mapping.yaml 中的静态 route 传输到 destination PE。
 - 不显式创建大量 Router 对象。
 - NoC 用紧凑的资源表，例如：

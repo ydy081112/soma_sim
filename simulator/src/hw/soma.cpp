@@ -18,6 +18,7 @@ std::uint64_t SomaState::apply_bias(const std::vector<float>& bias, std::uint32_
     if (bias.size() != output_channels || voltage_.size() % output_channels != 0) {
         throw std::runtime_error("bias 与 soma layout 不匹配");
     }
+    // spatial-major state 复用每个 output channel 的 bias，不额外展开 bias 数组。
     for (std::size_t neuron = 0; neuron < voltage_.size(); ++neuron) {
         accumulate(neuron, bias[neuron % output_channels], timestep);
     }
@@ -27,11 +28,13 @@ std::uint64_t SomaState::apply_bias(const std::vector<float>& bias, std::uint32_
 void SomaState::accumulate(std::uint64_t neuron, float delta, std::uint32_t timestep) {
     if (neuron >= voltage_.size()) throw std::runtime_error("soma neuron 越界");
     const auto index = static_cast<std::size_t>(neuron);
+    // 只在该 neuron 真正收到更新时补算跨 timestep leak，避免全状态扫描。
     if (timestep > last_timestep_[index] && leak_ != 1.0F) {
         voltage_[index] *= std::pow(leak_, static_cast<float>(timestep - last_timestep_[index]));
     }
     last_timestep_[index] = timestep;
     voltage_[index] += delta;
+    // active 位防止同一 neuron 在 fake spike 排空前重复进入候选队列。
     if (!readout_ && voltage_[index] >= threshold_[index] && !candidate_active_[index]) {
         candidate_active_[index] = 1;
         candidates_.push_back(neuron);
@@ -39,6 +42,7 @@ void SomaState::accumulate(std::uint64_t neuron, float delta, std::uint32_t time
 }
 
 std::optional<FiredNeuron> SomaState::fire_one() {
+    // 候选可能被后续负权重拉回阈值下，因此出队时必须重新确认。
     while (!candidates_.empty()) {
         const auto neuron = candidates_.front();
         candidates_.pop_front();
@@ -47,6 +51,7 @@ std::optional<FiredNeuron> SomaState::fire_one() {
         if (voltage_[index] < threshold_[index]) continue;
         if (reset_ == "soft") voltage_[index] -= threshold_[index];
         else voltage_[index] = 0.0F;
+        // soft reset 后仍过阈值时重新排队，由下一枚 fake spike 再发一次。
         if (voltage_[index] >= threshold_[index]) {
             candidate_active_[index] = 1;
             candidates_.push_back(neuron);

@@ -56,7 +56,6 @@ def main() -> None:
     source.add_argument("--sample-npz", type=Path)
     parser.add_argument("--sample-index", type=int, default=0)
     parser.add_argument("--timesteps", type=int, default=16)
-    parser.add_argument("--timestep-period-ps", type=int, default=1_000_000_000)
     parser.add_argument("--rate-scale", type=float, default=1.0)
     parser.add_argument("--mode", choices=("deterministic", "stochastic"), default="deterministic")
     parser.add_argument("--seed", type=int, default=0)
@@ -78,13 +77,13 @@ def main() -> None:
     with args.output.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
-        for timestep in range(args.timesteps):
+        for timestep_index in range(args.timesteps):
+            timestep = timestep_index + 1
             # Simulator layout 是 spatial-major [H*W,C]。
-            for channel, y, x in np.argwhere(spikes[timestep]):
+            for channel, y, x in np.argwhere(spikes[timestep_index]):
                 neuron = (int(y) * spikes.shape[3] + int(x)) * channels + int(channel)
-                generated = timestep * args.timestep_period_ps
                 writer.writerow({
-                    "generated_time": generated, "current_time": generated,
+                    "generated_time": 0, "current_time": 0,
                     "spike_id": spike_id, "timestep": timestep, "layer_id": args.layer_id,
                     "src_neuron": neuron, "src_pe": args.src_pe, "src_router": args.src_router,
                     "dst_pe": args.dst_pe, "dst_router": args.dst_router,

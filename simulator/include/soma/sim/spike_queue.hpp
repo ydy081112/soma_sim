@@ -11,6 +11,7 @@ namespace soma {
 
 class SpikeQueue {
 public:
+    explicit SpikeQueue(bool timestep_first = false);
     std::uint64_t push(Spike spike);
     Spike pop();
     bool empty() const { return queue_.empty(); }
@@ -18,7 +19,12 @@ public:
 
 private:
     struct Later {
+        bool timestep_first = false;
+
         bool operator()(const Spike& lhs, const Spike& rhs) const {
+            if (timestep_first && lhs.timestep != rhs.timestep) {
+                return lhs.timestep > rhs.timestep;
+            }
             if (lhs.generated_time != rhs.generated_time) return lhs.generated_time > rhs.generated_time;
             return lhs.sequence_id > rhs.sequence_id;
         }
@@ -28,4 +34,3 @@ private:
 };
 
 }  // namespace soma
-

@@ -24,6 +24,7 @@ Statistics::Statistics(const MappingConfig& mapping, const HardwareConfig& hardw
     : mapping_(mapping), hardware_(hardware), layers_(mapping.layers.size()) {}
 
 TimestepStats& Statistics::timestep(std::uint32_t index) {
+    // timestep 只在首次出现时扩展，避免预先按最大时步分配大表。
     if (timesteps_.size() <= index) timesteps_.resize(static_cast<std::size_t>(index) + 1);
     return timesteps_[index];
 }
@@ -68,6 +69,7 @@ void Statistics::add_inject_hw_latency(SimTime hw_latency) {
     breakdown_.pe_inject_hw_latency += hw_latency;
 }
 void Statistics::add_noc_hw_latency(const NocTiming& timing) {
+    // traversal、congestion 和 link busy 分开累计，便于定位带宽瓶颈。
     breakdown_.noc_traversal_hw_latency += timing.hw_traversal_latency;
     breakdown_.router_congestion_hw_latency += timing.hw_congestion_latency;
     breakdown_.link_busy_hw_latency += timing.hw_link_busy_latency;
@@ -77,6 +79,7 @@ void Statistics::add_compute_hw_latency(SimTime hw_latency) {
 }
 
 void Statistics::add_data_energy(const NocTiming& noc, std::uint64_t updates) {
+    // 通信能耗按方向 hop 计数，计算能耗按实际 synaptic update 计数。
     energy_.axon_pj += hardware_.energy.axon_out_pj + hardware_.energy.axon_in_pj;
     energy_.router_pj += static_cast<double>(noc.hops + 1) * hardware_.energy.router_hop_pj;
     energy_.link_pj += static_cast<double>(noc.port_hops[static_cast<std::size_t>(Port::North)]) * hardware_.energy.north_link_pj +
@@ -99,6 +102,7 @@ void Statistics::add_bias_energy(std::uint64_t updates) {
 
 void Statistics::write(const std::string& output_dir, const std::vector<float>& scores,
                        std::optional<int> expected_output) const {
+    // summary 面向单次结果，两个 CSV 分别保留逐层和逐 timestep 的可分析数据。
     std::filesystem::create_directories(output_dir);
     std::ofstream summary(std::filesystem::path(output_dir) / "summary.json");
     if (!summary) throw std::runtime_error("无法写 output/summary.json");
@@ -160,7 +164,9 @@ void Statistics::write(const std::string& output_dir, const std::vector<float>& 
     timestep_csv << "timestep,processed_spikes,emitted_spikes,synaptic_updates,"
                     "host_latency_s,host_processed_spikes_per_sec,hardware_end_time_ps\n";
     timestep_csv << std::setprecision(12);
-    for (std::size_t i = 0; i < timesteps_.size(); ++i) {
+    // timestep synchronization 的逻辑编号从 1 开始，不输出虚构的 timestep 0。
+    const std::size_t first_timestep = hardware_.timestep_synchronization() ? 1 : 0;
+    for (std::size_t i = first_timestep; i < timesteps_.size(); ++i) {
         const auto& metric = timesteps_[i];
         timestep_csv << i << ',' << metric.processed_spikes << ',' << metric.emitted_spikes << ','
                      << metric.synaptic_updates << ',' << metric.host_latency_s << ','

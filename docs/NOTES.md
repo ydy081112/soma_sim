@@ -6,6 +6,20 @@
 
 ## [已完成]
 
+### 2026-08-31：timestep synchronization 注入与时间推进
+
+- 在 `hardware.yaml` / `HardwareConfig` 中增加 `execution_mode: timestep_synchronization`，当前 Loihi-style 配置显式启用；当前版本拒绝未实现的其他 mode，但没有加入占位分支。
+- input spike 的逻辑 timestep 改为从 1 开始，生成器和现有 CSV 的 `generated_time/current_time` 均为 0；删除 1 秒的人工 timestep period。
+- simulator 只注入当前 timestep，完整排空其 Data/Bias/SomaDrain、NoC 和内部派生事件后，再从实际硬件完成时刻注入下一步；派生 spike 始终继承原逻辑 timestep。global queue、Core/NoC resource-free-time 和模块边界保持不变。
+- 队列在同步模式按 `(timestep, generated_time, sequence_id)` 排序；默认构造仍保留硬件时间优先语义，便于后续无 timestep barrier 的架构扩展。
+- 验证：Python 工具语法检查、Release 构建、CTest 1/1 和最小样例均通过；VGG16 256-step 全量队列排空，处理 5,336,620 个 data spike，硬件时延 19.8095648631 s，预测/标签/参考均为 3，score cosine 为 0.9989644。
+- VGG sample 的 timestep 1 没有 input spike，但仍完成 Bias/神经元活动，`hardware_end_time_ps=635699200`；统计从 timestep 1 开始且不再生成 timestep 0 行。本节取代旧 benchmark 中依赖 `t * 1e12 ps` 并事后扣除 idle 的时间口径。
+
+### 2026-08-30：关键实现注释补充
+
+- 保留已有注释，并为 YAML/NPZ 解析、mapping、template 热路径、NoC 资源竞争、Core/Soma/fake spike、事件调度和统计边界补充 1–2 句中文说明。
+- `cmake --build build -j2` 与 `ctest --test-dir build --output-on-failure` 均通过。
+
 ### 2026-08-30：仓库工作流初始化
 
 - 在 `AGENTS.md` 增加可重复执行的协作、安全和验证流程。

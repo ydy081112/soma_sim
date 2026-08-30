@@ -9,6 +9,7 @@
 namespace soma {
 
 struct NpyArray {
+    // data 保留 NPY 的连续原始字节，按需转换成 simulator 使用的强类型数组。
     std::string dtype;
     std::vector<std::size_t> shape;
     std::vector<std::uint8_t> data;
@@ -22,6 +23,7 @@ struct NpyArray {
 
 class NpzArchive {
 public:
+    // 支持 NumPy savez 的 store/deflate entry，不允许 pickle object array。
     static NpzArchive load(const std::string& path);
     const NpyArray& at(const std::string& key) const;
     const NpyArray* find(const std::string& key) const;
@@ -32,4 +34,3 @@ private:
 };
 
 }  // namespace soma
-

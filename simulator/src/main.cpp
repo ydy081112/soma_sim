@@ -31,6 +31,7 @@ int main(int argc, char** argv) {
             }
             if (i + 1 >= argc) throw std::runtime_error("选项缺少值: " + arg);
             const std::string value = argv[++i];
+            //读取静态信息
             if (arg == "--hardware") options.hardware_path = value;
             else if (arg == "--mapping") options.mapping_path = value;
             else if (arg == "--weights") options.weights_path = value;

@@ -29,6 +29,6 @@ python3 tools/prepare_vgg16_assets.py \
 
 完整 256-step 是 benchmark，不进入默认 CTest。可先加 `--max-events 100000` 检查吞吐与内存，但这种输出会明确标记 `completed: false`，不能当成分类结果。
 
-结果中的 `hardware_latency` 是目标硬件时间轴上的模拟时延；`host_latency` 是当前主机执行模拟器的 wall-clock 耗时。VGG 输入默认用较大的 timestep period 隔离不同逻辑 step，因此 `hardware_end_time_ps` 是 timestamp，不能当作逐 timestep latency；跨实现比较前必须采用一致的 timestep latency 聚合口径。
+结果中的 `hardware_latency` 是目标硬件时间轴上的模拟时延；`host_latency` 是当前主机执行模拟器的 wall-clock 耗时。VGG 输入的逻辑 timestep 从 1 到 256，CSV 中 `generated_time/current_time` 全部为 0；simulator 排空当前 timestep 引发的全部事件后，才以该批的实际完成时刻开始下一步。sample 000 的 timestep 1 没有外部 spike，但仍会执行该步的 Bias/神经元活动，不会人为占用 1 秒。
 
-当前事件语义在每个到达 spike 后触发 threshold；每个有输入的逻辑 timestep 会为带 bias 的层加入一个 `Bias` 事件。它仍是异步 spike-oriented 路径，与按 timestep 聚合完整卷积后只 threshold 一次的转换参考并非逐值等价。`reference/` 中保留了 SANA-FE/Python 的已知结果用于后续逐层校准。
+当前事件语义在每个到达 spike 后触发 threshold；每个逻辑 timestep（包括没有外部 spike 的 timestep）都会为带 bias 的层加入一个 `Bias` 事件。timestep 之间有 barrier，但单个 timestep 内仍采用逐 spike 的事件驱动 threshold；它与按 timestep 聚合完整卷积后只 threshold 一次的转换参考并非逐值等价。`reference/` 中保留了 SANA-FE/Python 的已知结果用于后续逐层校准。

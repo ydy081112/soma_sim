@@ -164,7 +164,7 @@ def build_assets(source_path: Path, weights_path: Path, mapping_path: Path) -> N
     print(f"wrote {mapping_path}")
 
 
-def export_input(sample_path: Path, output_path: Path, timesteps: int, period_ps: int) -> None:
+def export_input(sample_path: Path, output_path: Path, timesteps: int) -> None:
     sample = np.load(sample_path, allow_pickle=False)
     spikes = np.asarray(sample["input_spikes"][:timesteps], dtype=np.bool_)
     label = int(sample["label"])
@@ -176,11 +176,11 @@ def export_input(sample_path: Path, output_path: Path, timesteps: int, period_ps
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         _, channels, _, width = spikes.shape
-        for timestep in range(spikes.shape[0]):
-            generated = timestep * period_ps
-            for channel, y, x in np.argwhere(spikes[timestep]):
+        for timestep_index in range(spikes.shape[0]):
+            timestep = timestep_index + 1
+            for channel, y, x in np.argwhere(spikes[timestep_index]):
                 neuron = (int(y) * width + int(x)) * channels + int(channel)
-                writer.writerow({"generated_time": generated, "current_time": generated,
+                writer.writerow({"generated_time": 0, "current_time": 0,
                                  "spike_id": spike_id, "timestep": timestep, "layer_id": "input",
                                  "src_neuron": neuron, "src_pe": 0, "src_router": 0,
                                  "dst_pe": 1, "dst_router": 1, "route": "debug_only",
@@ -197,10 +197,9 @@ def main() -> None:
     parser.add_argument("--mapping", type=Path, default=Path("compiler/mapping_output/vgg16_mapping.yaml"))
     parser.add_argument("--input-csv", type=Path, default=Path("input/vgg16_input_spike.csv"))
     parser.add_argument("--timesteps", type=int, default=256)
-    parser.add_argument("--timestep-period-ps", type=int, default=1_000_000_000_000)
     args = parser.parse_args()
     build_assets(args.source_parameters, args.weights, args.mapping)
-    export_input(args.sample, args.input_csv, args.timesteps, args.timestep_period_ps)
+    export_input(args.sample, args.input_csv, args.timesteps)
 
 
 if __name__ == "__main__":

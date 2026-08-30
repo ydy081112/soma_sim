@@ -21,9 +21,9 @@ struct InputSpikeRecord {
 struct InputSpikeFile {
     std::vector<InputSpikeRecord> spikes;
     std::optional<int> expected_output;
+    std::uint32_t last_timestep = 0;
 };
 
 InputSpikeFile load_input_spikes_csv(const std::string& path);
 
 }  // namespace soma
-

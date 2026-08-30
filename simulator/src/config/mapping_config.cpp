@@ -32,6 +32,8 @@ MappingConfig MappingConfig::load(const std::string& path) {
     config.model = yaml::get_string(mapping, "model", "unnamed");
     const auto& layers = mapping.at("layers");
     if (!layers.is_sequence()) throw std::runtime_error("mapping.layers 必须是 sequence");
+    // 提取yaml
+    // YAML 中每个条目对应一个 layer partition；aggregated 是大层的快速估计模式。
     for (const auto& node : layers.elements()) {
         LayerMapping layer;
         layer.index = config.layers.size();
@@ -60,6 +62,7 @@ MappingConfig MappingConfig::load(const std::string& path) {
         config.layers.push_back(std::move(layer));
     }
 
+    // Route 保存完整 router 序列，CSV 中的 route/debug 字段不会进入这里。
     const auto& routes = mapping.at("routes");
     if (!routes.is_sequence()) throw std::runtime_error("mapping.routes 必须是 sequence");
     for (const auto& node : routes.elements()) {
@@ -76,6 +79,7 @@ MappingConfig MappingConfig::load(const std::string& path) {
 }
 
 void MappingConfig::rebuild_indices() {
+    // 热路径只做哈希查询，避免每枚 spike 线性搜索 layer 或 route。
     layer_index_.clear();
     route_index_.clear();
     for (std::size_t i = 0; i < layers.size(); ++i) {
@@ -89,8 +93,9 @@ void MappingConfig::rebuild_indices() {
         }
     }
 }
-
 void MappingConfig::validate(std::uint32_t router_count) const {
+    // 合法性检查
+    // 同时检查 layer 引用和静态 route 端点，保证 mapping 是路由唯一真值来源。
     if (layers.empty()) throw std::runtime_error("mapping 至少需要一个 layer");
     for (const auto& layer : layers) {
         if (layer.neurons == 0) throw std::runtime_error(layer.id + ": neurons 必须为正");

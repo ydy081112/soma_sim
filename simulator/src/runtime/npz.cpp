@@ -13,6 +13,7 @@ namespace soma {
 namespace {
 
 std::uint16_t u16(const std::vector<std::uint8_t>& bytes, std::size_t offset) {
+    // ZIP/NPY 元数据采用 little-endian；所有读取先做边界检查。
     if (offset + 2 > bytes.size()) throw std::runtime_error("NPZ 截断");
     return static_cast<std::uint16_t>(bytes[offset]) |
            static_cast<std::uint16_t>(bytes[offset + 1] << 8U);
@@ -28,6 +29,7 @@ std::uint32_t u32(const std::vector<std::uint8_t>& bytes, std::size_t offset) {
 
 std::vector<std::uint8_t> inflate_raw(const std::uint8_t* data, std::size_t compressed,
                                       std::size_t uncompressed) {
+    // ZIP entry 的 deflate 流没有 zlib wrapper，因此使用负的 window bits。
     std::vector<std::uint8_t> out(uncompressed);
     z_stream stream{};
     stream.next_in = const_cast<Bytef*>(reinterpret_cast<const Bytef*>(data));
@@ -44,6 +46,7 @@ std::vector<std::uint8_t> inflate_raw(const std::uint8_t* data, std::size_t comp
 }
 
 NpyArray parse_npy(const std::vector<std::uint8_t>& bytes) {
+    // 只解析 simulator 需要的 descr/shape/order，拒绝 Fortran layout 以保持连续热路径。
     static const std::uint8_t magic[] = {0x93, 'N', 'U', 'M', 'P', 'Y'};
     if (bytes.size() < 10 || !std::equal(std::begin(magic), std::end(magic), bytes.begin())) {
         throw std::runtime_error("NPZ entry 不是 NPY");
@@ -139,6 +142,7 @@ NpzArchive NpzArchive::load(const std::string& path) {
     std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
     if (bytes.size() < 22) throw std::runtime_error("NPZ 文件过短");
 
+    // 从文件尾定位 central directory，再根据 local header 找到每个 NPY payload。
     std::size_t eocd = std::string::npos;
     const std::size_t lower = bytes.size() > 65'557 ? bytes.size() - 65'557 : 0;
     for (std::size_t pos = bytes.size() - 22;; --pos) {
@@ -166,6 +170,7 @@ NpzArchive NpzArchive::load(const std::string& path) {
         const auto local_extra_len = u16(bytes, local_offset + 28);
         const auto data_offset = static_cast<std::size_t>(local_offset) + 30 + local_name_len + local_extra_len;
         if (data_offset + compressed > bytes.size()) throw std::runtime_error("NPZ entry 截断");
+        // NumPy savez 可能使用 store 或 deflate；二者最终都交给同一个 NPY parser。
         std::vector<std::uint8_t> raw;
         if (method == 0) {
             raw.assign(bytes.begin() + static_cast<std::ptrdiff_t>(data_offset),
@@ -202,4 +207,3 @@ std::vector<std::string> NpzArchive::keys() const {
 }
 
 }  // namespace soma
-

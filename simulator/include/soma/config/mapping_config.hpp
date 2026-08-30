@@ -10,6 +10,7 @@ namespace soma {
 enum class LayerOp { Input, Conv2d, Linear, AvgPool2d };
 
 struct LayerMapping {
+    // 一个条目描述一个 layer partition 到 PE/Core/Router 的静态放置。
     std::size_t index = 0;
     std::string id;
     std::string partition = "0";
@@ -36,6 +37,7 @@ struct LayerMapping {
 };
 
 struct StaticRoute {
+    // routers 包含起点和终点，runtime 不会从 CSV 或坐标重新推导路径。
     std::string from;
     std::string to;
     std::vector<std::uint32_t> routers;
@@ -64,4 +66,3 @@ private:
 std::string to_string(LayerOp op);
 
 }  // namespace soma
-

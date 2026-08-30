@@ -31,6 +31,7 @@ const yaml::Node& optional_map(const yaml::Node& parent, const std::string& key)
 }  // namespace
 
 SimTime parse_time_ps(const std::string& raw) {
+    // 配置加载时一次性换算为整数 ps，事件热路径不再处理单位或浮点时间。
     auto value = trim(raw);
     std::size_t consumed = 0;
     const long double magnitude = std::stold(value, &consumed);
@@ -57,10 +58,12 @@ HardwareConfig HardwareConfig::load(const std::string& path) {
     const auto& architecture = root.at("architecture");
     HardwareConfig config;
     config.name = yaml::get_string(architecture, "name", "configurable_snn");
+    config.execution_mode = architecture.at("execution_mode").as_string();
     config.frequency_mhz = yaml::get_double(architecture, "frequency_mhz", 1'000.0);
     config.hw_cycle_time_ps = static_cast<SimTime>(
         std::llround(1'000'000.0 / config.frequency_mhz));
 
+    // NoC、Core 和能耗分别加载，缺省值只用于可选微架构字段。
     const auto& noc = architecture.at("noc");
     config.noc.topology = yaml::get_string(noc, "topology", "mesh");
     config.noc.routing = yaml::get_string(noc, "routing", "static");
@@ -93,6 +96,7 @@ HardwareConfig HardwareConfig::load(const std::string& path) {
         directional_hw_latency, "west", config.noc.link_hw_latency);
     config.noc.link_busy_hw_latency = hw_latency_field(
         link, "busy_hardware_latency", config.noc.link_hw_latency);
+    // Link 的同步/异步模式由信号线组合决定，不依赖 architecture.name。
     const auto& send = optional_map(link, "send");
     const auto& receive = optional_map(link, "receive");
     config.noc.send_req = yaml::get_bool(send, "req", false);
@@ -139,6 +143,11 @@ HardwareConfig HardwareConfig::load(const std::string& path) {
 }
 
 void HardwareConfig::validate() const {
+    // 在进入仿真循环前拒绝当前 MVP 无法准确表达的硬件组合。
+    if (!timestep_synchronization()) {
+        throw std::runtime_error(
+            "当前版本只实现 execution_mode: timestep_synchronization");
+    }
     if (frequency_mhz <= 0.0 || hw_cycle_time_ps == 0) {
         throw std::runtime_error("frequency_mhz 必须为正");
     }
