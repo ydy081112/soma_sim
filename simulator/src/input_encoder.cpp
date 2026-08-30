@@ -1,0 +1,99 @@
+#include "soma/input_encoder.hpp"
+
+#include <algorithm>
+#include <cctype>
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
+#include <unordered_map>
+
+namespace soma {
+namespace {
+
+std::string trim(std::string value) {
+    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front()))) value.erase(value.begin());
+    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) value.pop_back();
+    return value;
+}
+
+std::vector<std::string> split_csv(const std::string& line) {
+    std::vector<std::string> fields;
+    std::string current;
+    bool quoted = false;
+    for (std::size_t i = 0; i < line.size(); ++i) {
+        const char c = line[i];
+        if (c == '"') {
+            if (quoted && i + 1 < line.size() && line[i + 1] == '"') {
+                current.push_back('"');
+                ++i;
+            } else quoted = !quoted;
+        } else if (c == ',' && !quoted) {
+            fields.push_back(trim(current));
+            current.clear();
+        } else {
+            current.push_back(c);
+        }
+    }
+    if (quoted) throw std::runtime_error("CSV 引号未闭合");
+    fields.push_back(trim(current));
+    return fields;
+}
+
+}  // namespace
+
+InputSpikeFile load_input_spikes_csv(const std::string& path) {
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("无法打开 input spike CSV: " + path);
+    std::string line;
+    if (!std::getline(input, line)) throw std::runtime_error("input spike CSV 为空");
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    const auto header = split_csv(line);
+    std::unordered_map<std::string, std::size_t> column;
+    for (std::size_t i = 0; i < header.size(); ++i) column.emplace(header[i], i);
+    for (const auto* required : {"generated_time", "spike_id", "layer_id", "src_neuron", "value"}) {
+        if (column.find(required) == column.end()) throw std::runtime_error("CSV 缺少列: " + std::string(required));
+    }
+    auto field = [&](const std::vector<std::string>& row, const std::string& name) -> const std::string& {
+        const auto index = column.at(name);
+        if (index >= row.size()) throw std::runtime_error("CSV 行缺少字段: " + name);
+        return row[index];
+    };
+
+    InputSpikeFile result;
+    std::size_t line_number = 1;
+    while (std::getline(input, line)) {
+        ++line_number;
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (trim(line).empty()) continue;
+        try {
+            const auto row = split_csv(line);
+            InputSpikeRecord record;
+            record.generated_time = parse_time_ps(field(row, "generated_time"));
+            record.spike_id = std::stoull(field(row, "spike_id"));
+            record.layer_id = field(row, "layer_id");
+            record.source_neuron = std::stoull(field(row, "src_neuron"));
+            record.value = std::stof(field(row, "value"));
+            const auto timestep = column.find("timestep");
+            record.timestep = timestep == column.end() || timestep->second >= row.size() || row[timestep->second].empty()
+                                  ? 0U : static_cast<std::uint32_t>(std::stoul(row[timestep->second]));
+            const auto expected = column.find("expected_output");
+            if (expected != column.end() && expected->second < row.size() && !row[expected->second].empty()) {
+                const int value = std::stoi(row[expected->second]);
+                if (result.expected_output && *result.expected_output != value) {
+                    throw std::runtime_error("CSV expected_output 不一致");
+                }
+                result.expected_output = value;
+            }
+            result.spikes.push_back(std::move(record));
+        } catch (const std::exception& error) {
+            throw std::runtime_error("CSV 行 " + std::to_string(line_number) + ": " + error.what());
+        }
+    }
+    std::stable_sort(result.spikes.begin(), result.spikes.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.generated_time < rhs.generated_time;
+    });
+    return result;
+}
+
+}  // namespace soma
+

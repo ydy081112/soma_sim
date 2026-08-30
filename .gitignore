@@ -1,0 +1,12 @@
+/build/
+/output/*
+!/output/.gitkeep
+/input/weights.npz
+/input/vgg16_weights.npz
+/input/vgg16_input_spike.csv
+/input/vgg16_source_parameters.npz
+/input/cifar10_sample_000.npz
+/reference/*.npz
+/output_vgg16/
+__pycache__/
+*.pyc

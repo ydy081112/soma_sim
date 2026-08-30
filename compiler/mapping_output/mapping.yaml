@@ -1,0 +1,59 @@
+mapping:
+  model: minimal_spatial_snn
+  policy: layer_partition_to_pe_core
+  hardware: arch/hardware.yaml
+  layers:
+    - id: input
+      partition: 0
+      op: input
+      pe: 0
+      core: 0
+      router: 0
+      neurons: 4
+      input_h: 2
+      input_w: 2
+      input_channels: 1
+      output_h: 2
+      output_w: 2
+      output_channels: 1
+      next: conv0
+      virtual_input: true
+    - id: conv0
+      partition: 0
+      op: conv2d
+      pe: 1
+      core: 0
+      router: 1
+      source_neurons: 4
+      neurons: 8
+      input_h: 2
+      input_w: 2
+      input_channels: 1
+      output_h: 2
+      output_w: 2
+      output_channels: 2
+      weight_prefix: conv0
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      next: readout
+    - id: readout
+      partition: 0
+      op: linear
+      pe: 2
+      core: 0
+      router: 257
+      source_neurons: 8
+      neurons: 2
+      input_channels: 8
+      output_channels: 2
+      weight_prefix: readout
+      readout: true
+  routes:
+    - from: input
+      to: conv0
+      routers: [0, 1]
+    - from: conv0
+      to: readout
+      routers: [1, 257]
+

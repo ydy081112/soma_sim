@@ -1,0 +1,506 @@
+mapping:
+  model: vgg16_if_snn_cifar10
+  policy: aggregated_layer_partition_to_pe_core
+  hardware: arch/hardware.yaml
+  layers:
+    - id: input
+      partition: virtual
+      op: input
+      pe: 0
+      core: 0
+      router: 0
+      neurons: 6144
+      input_h: 32
+      input_w: 32
+      input_channels: 6
+      output_h: 32
+      output_w: 32
+      output_channels: 6
+      next: conv0
+      virtual_input: true
+    - id: conv0
+      partition: aggregated
+      op: conv2d
+      pe: 1
+      core: 0
+      router: 1
+      source_neurons: 6144
+      neurons: 65536
+      input_h: 32
+      input_w: 32
+      input_channels: 6
+      output_h: 32
+      output_w: 32
+      output_channels: 64
+      aggregate_core_count: 64
+      weight_prefix: conv0
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      next: conv1
+    - id: conv1
+      partition: aggregated
+      op: conv2d
+      pe: 2
+      core: 0
+      router: 2
+      source_neurons: 65536
+      neurons: 65536
+      input_h: 32
+      input_w: 32
+      input_channels: 64
+      output_h: 32
+      output_w: 32
+      output_channels: 64
+      aggregate_core_count: 64
+      weight_prefix: conv1
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      next: pool0
+    - id: pool0
+      partition: aggregated
+      op: avgpool2d
+      pe: 3
+      core: 0
+      router: 3
+      source_neurons: 65536
+      neurons: 16384
+      input_h: 32
+      input_w: 32
+      input_channels: 64
+      output_h: 16
+      output_w: 16
+      output_channels: 64
+      aggregate_core_count: 16
+      weight_prefix: pool0
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      channelwise: true
+      next: conv2
+    - id: conv2
+      partition: aggregated
+      op: conv2d
+      pe: 4
+      core: 0
+      router: 4
+      source_neurons: 16384
+      neurons: 32768
+      input_h: 16
+      input_w: 16
+      input_channels: 64
+      output_h: 16
+      output_w: 16
+      output_channels: 128
+      aggregate_core_count: 32
+      weight_prefix: conv2
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      next: conv3
+    - id: conv3
+      partition: aggregated
+      op: conv2d
+      pe: 5
+      core: 0
+      router: 5
+      source_neurons: 32768
+      neurons: 32768
+      input_h: 16
+      input_w: 16
+      input_channels: 128
+      output_h: 16
+      output_w: 16
+      output_channels: 128
+      aggregate_core_count: 32
+      weight_prefix: conv3
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      next: pool1
+    - id: pool1
+      partition: aggregated
+      op: avgpool2d
+      pe: 6
+      core: 0
+      router: 6
+      source_neurons: 32768
+      neurons: 8192
+      input_h: 16
+      input_w: 16
+      input_channels: 128
+      output_h: 8
+      output_w: 8
+      output_channels: 128
+      aggregate_core_count: 8
+      weight_prefix: pool1
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      channelwise: true
+      next: conv4
+    - id: conv4
+      partition: aggregated
+      op: conv2d
+      pe: 7
+      core: 0
+      router: 7
+      source_neurons: 8192
+      neurons: 16384
+      input_h: 8
+      input_w: 8
+      input_channels: 128
+      output_h: 8
+      output_w: 8
+      output_channels: 256
+      aggregate_core_count: 16
+      weight_prefix: conv4
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      next: conv5
+    - id: conv5
+      partition: aggregated
+      op: conv2d
+      pe: 8
+      core: 0
+      router: 8
+      source_neurons: 16384
+      neurons: 16384
+      input_h: 8
+      input_w: 8
+      input_channels: 256
+      output_h: 8
+      output_w: 8
+      output_channels: 256
+      aggregate_core_count: 16
+      weight_prefix: conv5
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      next: conv6
+    - id: conv6
+      partition: aggregated
+      op: conv2d
+      pe: 9
+      core: 0
+      router: 9
+      source_neurons: 16384
+      neurons: 16384
+      input_h: 8
+      input_w: 8
+      input_channels: 256
+      output_h: 8
+      output_w: 8
+      output_channels: 256
+      aggregate_core_count: 16
+      weight_prefix: conv6
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      next: pool2
+    - id: pool2
+      partition: aggregated
+      op: avgpool2d
+      pe: 10
+      core: 0
+      router: 10
+      source_neurons: 16384
+      neurons: 4096
+      input_h: 8
+      input_w: 8
+      input_channels: 256
+      output_h: 4
+      output_w: 4
+      output_channels: 256
+      aggregate_core_count: 4
+      weight_prefix: pool2
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      channelwise: true
+      next: conv7
+    - id: conv7
+      partition: aggregated
+      op: conv2d
+      pe: 11
+      core: 0
+      router: 11
+      source_neurons: 4096
+      neurons: 8192
+      input_h: 4
+      input_w: 4
+      input_channels: 256
+      output_h: 4
+      output_w: 4
+      output_channels: 512
+      aggregate_core_count: 8
+      weight_prefix: conv7
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      next: conv8
+    - id: conv8
+      partition: aggregated
+      op: conv2d
+      pe: 12
+      core: 0
+      router: 12
+      source_neurons: 8192
+      neurons: 8192
+      input_h: 4
+      input_w: 4
+      input_channels: 512
+      output_h: 4
+      output_w: 4
+      output_channels: 512
+      aggregate_core_count: 8
+      weight_prefix: conv8
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      next: conv9
+    - id: conv9
+      partition: aggregated
+      op: conv2d
+      pe: 13
+      core: 0
+      router: 13
+      source_neurons: 8192
+      neurons: 8192
+      input_h: 4
+      input_w: 4
+      input_channels: 512
+      output_h: 4
+      output_w: 4
+      output_channels: 512
+      aggregate_core_count: 8
+      weight_prefix: conv9
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      next: pool3
+    - id: pool3
+      partition: aggregated
+      op: avgpool2d
+      pe: 14
+      core: 0
+      router: 14
+      source_neurons: 8192
+      neurons: 2048
+      input_h: 4
+      input_w: 4
+      input_channels: 512
+      output_h: 2
+      output_w: 2
+      output_channels: 512
+      aggregate_core_count: 2
+      weight_prefix: pool3
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      channelwise: true
+      next: conv10
+    - id: conv10
+      partition: aggregated
+      op: conv2d
+      pe: 15
+      core: 0
+      router: 15
+      source_neurons: 2048
+      neurons: 2048
+      input_h: 2
+      input_w: 2
+      input_channels: 512
+      output_h: 2
+      output_w: 2
+      output_channels: 512
+      aggregate_core_count: 2
+      weight_prefix: conv10
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      next: conv11
+    - id: conv11
+      partition: aggregated
+      op: conv2d
+      pe: 16
+      core: 0
+      router: 16
+      source_neurons: 2048
+      neurons: 2048
+      input_h: 2
+      input_w: 2
+      input_channels: 512
+      output_h: 2
+      output_w: 2
+      output_channels: 512
+      aggregate_core_count: 2
+      weight_prefix: conv11
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      next: conv12
+    - id: conv12
+      partition: aggregated
+      op: conv2d
+      pe: 17
+      core: 0
+      router: 17
+      source_neurons: 2048
+      neurons: 2048
+      input_h: 2
+      input_w: 2
+      input_channels: 512
+      output_h: 2
+      output_w: 2
+      output_channels: 512
+      aggregate_core_count: 2
+      weight_prefix: conv12
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      next: pool4
+    - id: pool4
+      partition: aggregated
+      op: avgpool2d
+      pe: 18
+      core: 0
+      router: 18
+      source_neurons: 2048
+      neurons: 512
+      input_h: 2
+      input_w: 2
+      input_channels: 512
+      output_h: 1
+      output_w: 1
+      output_channels: 512
+      aggregate_core_count: 1
+      weight_prefix: pool4
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      channelwise: true
+      next: fc1
+    - id: fc1
+      partition: aggregated
+      op: linear
+      pe: 19
+      core: 0
+      router: 19
+      source_neurons: 512
+      neurons: 512
+      input_h: 1
+      input_w: 1
+      input_channels: 512
+      output_h: 1
+      output_w: 1
+      output_channels: 512
+      aggregate_core_count: 1
+      weight_prefix: fc1
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      next: fc2
+    - id: fc2
+      partition: aggregated
+      op: linear
+      pe: 20
+      core: 0
+      router: 20
+      source_neurons: 512
+      neurons: 512
+      input_h: 1
+      input_w: 1
+      input_channels: 512
+      output_h: 1
+      output_w: 1
+      output_channels: 512
+      aggregate_core_count: 1
+      weight_prefix: fc2
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      next: readout
+    - id: readout
+      partition: aggregated
+      op: linear
+      pe: 21
+      core: 0
+      router: 21
+      source_neurons: 512
+      neurons: 10
+      input_h: 1
+      input_w: 1
+      input_channels: 512
+      output_h: 1
+      output_w: 1
+      output_channels: 10
+      aggregate_core_count: 1
+      weight_prefix: readout
+      readout: true
+  routes:
+    - from: input
+      to: conv0
+      routers: [0, 1]
+    - from: conv0
+      to: conv1
+      routers: [1, 2]
+    - from: conv1
+      to: pool0
+      routers: [2, 3]
+    - from: pool0
+      to: conv2
+      routers: [3, 4]
+    - from: conv2
+      to: conv3
+      routers: [4, 5]
+    - from: conv3
+      to: pool1
+      routers: [5, 6]
+    - from: pool1
+      to: conv4
+      routers: [6, 7]
+    - from: conv4
+      to: conv5
+      routers: [7, 8]
+    - from: conv5
+      to: conv6
+      routers: [8, 9]
+    - from: conv6
+      to: pool2
+      routers: [9, 10]
+    - from: pool2
+      to: conv7
+      routers: [10, 11]
+    - from: conv7
+      to: conv8
+      routers: [11, 12]
+    - from: conv8
+      to: conv9
+      routers: [12, 13]
+    - from: conv9
+      to: pool3
+      routers: [13, 14]
+    - from: pool3
+      to: conv10
+      routers: [14, 15]
+    - from: conv10
+      to: conv11
+      routers: [15, 16]
+    - from: conv11
+      to: conv12
+      routers: [16, 17]
+    - from: conv12
+      to: pool4
+      routers: [17, 18]
+    - from: pool4
+      to: fc1
+      routers: [18, 19]
+    - from: fc1
+      to: fc2
+      routers: [19, 20]
+    - from: fc2
+      to: readout
+      routers: [20, 21]

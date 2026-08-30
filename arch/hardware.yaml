@@ -1,0 +1,76 @@
+# 参数取自 SANA-FE arch/loihi_large_vgg.yaml；名称只作 trace，不参与 C++ 微架构选择。
+architecture:
+  name: reference_large_mesh
+  frequency_mhz: 1000
+  technology: 14nm
+  voltage_v: 0.9
+  noc:
+    topology: mesh
+    rows: 128
+    cols: 256
+    routing: static
+    virtual_channels: 1
+    input_buffer_depth: 16
+    flit_width_bits: 64
+    spike_per_flit: 1
+    pipeline:
+      # 方向 hop hardware latency 已包含交换/链路传播，因此这里不重复计时。
+      input_queue_hardware_latency: 0 ps
+      route_compute_hardware_latency: 0 ps
+      switch_allocate_hardware_latency: 0 ps
+      switch_traversal_hardware_latency: 0 ps
+    link:
+      hardware_latency: 4.1 ns
+      directional_hardware_latency:
+        north: 6.5 ns
+        east: 4.1 ns
+        south: 6.5 ns
+        west: 4.1 ns
+      busy_hardware_latency: 4.1 ns
+      # req+ack 决定异步握手；代码不检查芯片名称。
+      send:
+        req: true
+        data: true
+      receive:
+        ack: true
+        credit: true
+    synchronization:
+      model: table
+      hardware_latency_1: 0.6 us
+      hardware_latency_2: 1.0 us
+      hardware_latency_4: 1.4 us
+      hardware_latency_29: 1.8 us
+  core:
+    pe_count: 1024
+    cores_per_pe: 4
+    max_neurons: 1024
+    input_buffer_depth: 16
+    synapse_sram_bytes: 131072
+    hardware_latency:
+      axon_in: 16.0 ns
+      axon_out: 5.1 ns
+      sram_read: 0 ps
+      sram_write: 0 ps
+      synapse: 3.1 ns
+      soma_update: 9.7 ns
+      soma_fire: 30.0 ns
+    neuron:
+      model: leaky_integrate_fire
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+  energy_pj:
+    router_hop: 0.0
+    link_hop: 3.0
+    directional_link:
+      north: 4.2
+      east: 3.0
+      south: 4.2
+      west: 3.0
+    axon_in: 0.0
+    axon_out: 111.0
+    sram_read: 0.0
+    sram_write: 0.0
+    synapse: 24.0
+    soma_update: 72.8
+    soma_fire: 69.3

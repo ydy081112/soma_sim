@@ -1,0 +1,5 @@
+generated_time,current_time,spike_id,timestep,layer_id,src_neuron,src_pe,src_router,dst_pe,dst_router,route,value,expected_output
+0 ps,0 ps,0,0,input,0,0,0,1,1,debug_only,1.0,0
+10 ns,10 ns,1,0,input,1,0,0,1,1,debug_only,1.0,0
+20 ns,20 ns,2,1,input,2,0,0,1,1,debug_only,1.0,0
+
