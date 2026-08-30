@@ -6,6 +6,15 @@
 
 ## [已完成]
 
+### 2026-08-31：Loihi / SANA-FE timestep-synchronous 两阶段执行
+
+- 同步模式改为“读取上一 timestep buffer 的 neuron processing → 当前 Data/NoC/synaptic accumulation → queue drain/barrier”；Data path 不再访问 soma state，Core buffer 用独立 pending 位保留累加和为 0 的输入。
+- 删除 `SpikeKind` 与 Bias queue event；global queue 只保存真实 Data。bias/leak/membrane transition 在按 neuron id 升序的 loop 中处理，每个 neuron 每 timestep 最多 firing 一次，soft-reset 剩余电位留到后续 timestep。
+- hardware timing 将原 `soma_update: 9.7 ns` 拆为 `soma_access: 6.0 ns` 和 `soma_update: 3.7 ns`。每个 mapped neuron 收取 access，只有实际 state update 再收取 update，firing 继续单独收取 `soma_fire`。
+- 所有 Core 从同一 timestep 起点并行执行 neuron phase；Data phase 从最慢 Core 完成后开始。固定运行到 input CSV 的最后 timestep，不自动增加 pipeline flush step。
+- 验证：Release 构建和 CTest 1/1 通过，覆盖 Data-only accumulation、下一步 processing、mapped/updated timing、内联 bias、每步单 firing 和剩余膜电位延后 firing。最小 2-step 样例处理 5 个 Data spike、hardware latency `261800 ps`、预测 0。
+- VGG16 256-step 全量运行完成：处理/发射 5,176,477 个 Data spike，hardware latency 0.2253739237 s，host latency 10.4269 s，peak RSS 约 132 MiB；预测/标签/参考均为 3，score cosine 为 0.9996414。
+
 ### 2026-08-31：敏感背景文件 Git 历史清理
 
 - 将 `docs/background.md` 加入 `.gitignore` 并停止 Git 跟踪，本地文件保持不变；安全修复提交未混入现有其他未提交代码。

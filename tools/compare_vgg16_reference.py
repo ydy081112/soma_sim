@@ -27,7 +27,7 @@ def main() -> None:
         "label": int(reference["label"]),
         "prediction_match": int(ours["prediction"]) == int(reference["prediction"]),
         "score_cosine_similarity": cosine,
-        "note": "timestep barrier 内的逐 spike threshold 与 reference 的逐 timestep 聚合语义不同，比较分类与方向相似度。",
+        "note": "SOMA 使用 timestep buffer 聚合与统一 neuron processing；比较分类和 score 方向相似度。",
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

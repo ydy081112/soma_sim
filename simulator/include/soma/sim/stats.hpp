@@ -54,15 +54,15 @@ public:
     void record_data(std::size_t layer, std::uint32_t timestep, std::uint64_t updates,
                      SimTime hw_current_time);
     void record_emit(std::size_t layer, std::uint32_t timestep, SimTime hw_current_time);
-    void record_state_updates(std::size_t layer, std::uint32_t timestep, std::uint64_t updates,
-                              SimTime hw_current_time);
+    void record_neuron_processing(std::size_t layer, std::uint32_t timestep,
+                                  SimTime hw_current_time);
     void record_host_latency(std::size_t layer, std::uint32_t timestep, double host_latency_s);
     void add_inject_hw_latency(SimTime hw_latency);
     void add_noc_hw_latency(const NocTiming& timing);
     void add_compute_hw_latency(SimTime hw_latency);
     void add_data_energy(const NocTiming& noc, std::uint64_t updates);
+    void add_neuron_energy(std::uint64_t updated_neurons);
     void add_fire_energy();
-    void add_bias_energy(std::uint64_t updates);
     void set_host_latency(double host_latency_s) { host_latency_s_ = host_latency_s; }
     void set_stopped_early(bool value) { stopped_early_ = value; }
 

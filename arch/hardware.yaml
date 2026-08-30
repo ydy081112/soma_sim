@@ -53,7 +53,8 @@ architecture:
       sram_read: 0 ps
       sram_write: 0 ps
       synapse: 3.1 ns
-      soma_update: 9.7 ns
+      soma_access: 6.0 ns
+      soma_update: 3.7 ns
       soma_fire: 30.0 ns
     neuron:
       model: leaky_integrate_fire

@@ -43,21 +43,6 @@ void Simulator::prepare_input_timesteps() {
 }
 
 void Simulator::inject_timestep(std::uint32_t timestep, SimTime hw_start_time) {
-    if (!queue_.empty()) {
-        throw std::logic_error("注入下一 timestep 前 global queue 必须为空");
-    }
-    // 1. bias_spike放在每个timestep的第一个保证他能先被加上; 2.假如这个timestep没有spike，假如超过阈值他也会触发spike
-    for (const auto& layer : mapping_.layers) {
-        if (layer.op == LayerOp::Input || !cores_.at(layer.index)->has_bias()) continue;
-        Spike bias;
-        bias.kind = SpikeKind::Bias;
-        bias.generated_time = hw_start_time;
-        bias.current_time = hw_start_time;
-        bias.timestep = timestep;
-        bias.source_layer = layer.index;
-        queue_.push(std::move(bias));
-    }
-
     const auto group = input_by_timestep_.find(timestep);
     if (group == input_by_timestep_.end()) return;
     for (const auto index : group->second) {
@@ -69,7 +54,6 @@ void Simulator::inject_timestep(std::uint32_t timestep, SimTime hw_start_time) {
         }
         if (record.source_neuron >= layer.neurons) throw std::runtime_error("CSV src_neuron 越界");
         Spike spike;
-        spike.kind = SpikeKind::Data;
         // 同步模式不读取 CSV 的绝对时间；本 timestep 从上一批实际完成时刻开始。
         spike.generated_time = hw_start_time;
         spike.current_time = hw_start_time;
@@ -83,29 +67,44 @@ void Simulator::inject_timestep(std::uint32_t timestep, SimTime hw_start_time) {
     }
 }
 
-void Simulator::process_bias(Spike& spike) {
-    // Bias 不经过 NoC；它直接在所属 Core 上竞争 compute pipeline。
-    auto& core = *cores_.at(spike.source_layer);
-    const auto result = core.apply_bias(spike.timestep, spike.current_time);
-    spike.current_time = result.hw_finish_time;
-    stats_.add_compute_hw_latency(result.hw_compute_latency);
-    stats_.add_bias_energy(result.synaptic_updates);
-    stats_.record_state_updates(spike.source_layer, spike.timestep, result.synaptic_updates,
-                                result.hw_update_finish_time);
-    push_firings(spike.source_layer, spike.timestep, result.firings);
+SimTime Simulator::process_neurons(std::uint32_t timestep, SimTime hw_start_time) {
+    if (!queue_.empty()) {
+        throw std::logic_error("neuron processing 开始前 global queue 必须为空");
+    }
+    // 所有 Core 先读取上一 timestep 的 accumulation；代码顺序不改变各 Core 的独立资源并行性。
+    SimTime data_phase_start = hw_start_time;
+    std::vector<std::pair<std::size_t, std::vector<CoreFiringResult>>> pending_firings;
+    for (const auto& layer : mapping_.layers) {
+        if (layer.op == LayerOp::Input) continue;
+        const auto host_start = std::chrono::steady_clock::now();
+        auto result = cores_.at(layer.index)->process_timestep(timestep, hw_start_time);
+        const auto host_end = std::chrono::steady_clock::now();
+        stats_.add_compute_hw_latency(result.hw_compute_latency);
+        stats_.add_neuron_energy(result.updated_neurons);
+        stats_.record_neuron_processing(layer.index, timestep, result.hw_finish_time);
+        data_phase_start = std::max(data_phase_start, result.hw_finish_time);
+        pending_firings.emplace_back(layer.index, std::move(result.firings));
+        stats_.record_host_latency(
+            layer.index, timestep,
+            std::chrono::duration<double>(host_end - host_start).count());
+    }
+    for (const auto& [layer, firings] : pending_firings) {
+        push_firings(layer, timestep, firings, data_phase_start);
+    }
+    return data_phase_start;
 }
 
 void Simulator::push_firings(std::size_t layer_index, std::uint32_t timestep,
-                             const std::vector<CoreFiringResult>& firings) {
+                             const std::vector<CoreFiringResult>& firings,
+                             SimTime data_phase_start) {
     const auto& layer = mapping_.layer(layer_index);
     for (const auto& firing : firings) {
         stats_.record_emit(layer_index, timestep, firing.hw_finish_time);
         stats_.add_fire_energy();
         if (layer.next.empty()) continue;
         Spike generated;
-        generated.kind = SpikeKind::Data;
         generated.generated_time = firing.hw_finish_time;
-        generated.current_time = firing.hw_finish_time;
+        generated.current_time = std::max(firing.hw_finish_time, data_phase_start);
         generated.timestep = timestep;
         generated.source_layer = layer_index;
         generated.source_neuron = firing.fired.neuron;
@@ -148,8 +147,7 @@ void Simulator::process_data(Spike& spike) {
     stats_.add_compute_hw_latency(receive.hw_compute_latency);
     stats_.add_data_energy(noc, receive.synaptic_updates);
     stats_.record_data(target_index, spike.timestep, receive.synaptic_updates,
-                       receive.hw_update_finish_time);
-    push_firings(target_index, spike.timestep, receive.firings);
+                       receive.hw_finish_time);
 }
 
 const std::vector<float>& Simulator::final_scores() const {
@@ -164,6 +162,13 @@ const std::vector<float>& Simulator::final_scores() const {
 }
 
 SimulationResult Simulator::run() {
+    if (!hardware_.timestep_synchronization()) {
+        throw std::logic_error("当前 HardwareConfig 不使用 timestep synchronization");
+    }
+    return run_timestep_synchronization();
+}
+
+SimulationResult Simulator::run_timestep_synchronization() {
     const auto host_start = std::chrono::steady_clock::now();
     std::uint64_t events = 0;
     bool completed = true;
@@ -173,24 +178,23 @@ SimulationResult Simulator::run() {
             completed = false;
             break;
         }
-        inject_timestep(timestep, next_timestep_hw_start);
+        // t 的 neuron phase 只消费 t-1 buffer；随后本步全部 Data 只写下一批 buffer。
+        const auto data_phase_start = process_neurons(timestep, next_timestep_hw_start);
+        inject_timestep(timestep, data_phase_start);
 
-        // 当前 timestep 引发的 Data/Bias、NoC 和后继 Data 全部完成后，才允许注入下一批。
+        // 当前 timestep 的真实 Data、NoC 和 synaptic accumulation 全部完成后才进入 barrier。
         while (!queue_.empty()) {
             if (options_.max_events != 0 && events >= options_.max_events) {
                 completed = false;
                 break;
             }
             Spike spike = queue_.pop();
-            // Data 的 host 开销归到目标层，Bias 开销归到其所属层。
-            const std::size_t metric_layer = spike.kind == SpikeKind::Data &&
-                                                     !mapping_.layer(spike.source_layer).next.empty()
+            // global queue 只包含 Data，host 开销归到其目标层。
+            const std::size_t metric_layer = !mapping_.layer(spike.source_layer).next.empty()
                                                  ? mapping_.index_of(mapping_.layer(spike.source_layer).next)
                                                  : spike.source_layer;
             const auto host_event_start = std::chrono::steady_clock::now();
-            // 分成 data（正常的）spike和bias spike
-            if (spike.kind == SpikeKind::Data) process_data(spike);
-            else process_bias(spike);
+            process_data(spike);
             const auto host_event_end = std::chrono::steady_clock::now();
             stats_.record_host_latency(
                 metric_layer, spike.timestep,

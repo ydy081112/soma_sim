@@ -80,6 +80,7 @@ struct HardwareConfig {
         SimTime sram_read_hw_latency = 0;
         SimTime sram_write_hw_latency = 0;
         SimTime synapse_hw_latency = 0;
+        SimTime soma_access_hw_latency = 0;
         SimTime soma_update_hw_latency = 0;
         SimTime soma_fire_hw_latency = 0;
         float default_threshold = 1.0F;

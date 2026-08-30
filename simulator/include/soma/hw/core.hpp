@@ -19,10 +19,16 @@ struct CoreFiringResult {
 };
 
 struct CoreReceiveResult {
-    SimTime hw_update_finish_time = 0;
     SimTime hw_finish_time = 0;
     SimTime hw_compute_latency = 0;
     std::uint64_t synaptic_updates = 0;
+};
+
+struct CoreNeuronProcessResult {
+    SimTime hw_finish_time = 0;
+    SimTime hw_compute_latency = 0;
+    std::uint64_t mapped_neurons = 0;
+    std::uint64_t updated_neurons = 0;
     std::vector<CoreFiringResult> firings;
 };
 
@@ -32,9 +38,8 @@ public:
 
     CoreReceiveResult receive(std::uint64_t source_neuron, float value, std::uint32_t timestep,
                               SimTime hw_arrival_time);
-    CoreReceiveResult apply_bias(std::uint32_t timestep, SimTime hw_arrival_time);
+    CoreNeuronProcessResult process_timestep(std::uint32_t timestep, SimTime hw_arrival_time);
     const std::vector<float>& output_scores() const { return soma_.voltage(); }
-    bool has_bias() const { return !weights_.bias.empty(); }
 
 private:
     const LayerMapping& mapping_;
@@ -44,10 +49,9 @@ private:
     HardwareResource compute_pipeline_;
     MemoryResource synapse_sram_;
     SomaState soma_;
-
-    CoreReceiveResult complete_update(SimTime hw_arrival_time,
-                                      const ResourceReservation& update,
-                                      std::uint64_t synaptic_updates);
+    std::vector<float> timestep_buffer_;
+    std::vector<std::uint8_t> timestep_pending_;
+    std::uint32_t buffered_timestep_ = 0;
 };
 
 }  // namespace soma

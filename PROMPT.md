@@ -31,11 +31,11 @@ wait=start-arrival_time 计入 router congestion hardware latency；
   就是看有没有某个信号线，来确定是同步还是异步的，反正就是尽量不要通过loihi这种芯片的名字来说用哪个micro-arch这样子
 - 这个Link你可以参照前续版本里面的router.py里面的写法，分成input_to_output等等这些阶段
 - 到达 destination PE 后执行：
-input buffer → synapse/weight SRAM → neuron state update → threshold。
+input buffer → synapse/weight SRAM → timestep buffer accumulation。同步模式在下一 timestep 的 neuron-processing phase 才执行 soma access、state update、threshold、reset 和 firing。
      先不用像前续版本里面一样加一些gated的机制
 - connectivity 不展开。SynapseEngine 根据 source neuron 从 Spatial Pattern Template 直接得到 destination spatial block 和连续 Cout 权重块。这里尽量写的省时间一点，因为几十万数量级的spike，每个都是需要取存的，仿真时间会很多的
 - neuron state（threshold/voltage这些） 使用连续数组/SoA，不创建 per-neuron C++ object。记住，这个项目的主要目标是快速仿真，设计的时候代码写法以这个为目标来做
-- neuron state 只检查本次 spike 实际更新后进入候选集的 neuron，不扫描完整 state。Data 到达 Core 后直接完成 threshold check 和 firing；每次 firing 仍占用 soma_fire latency/resource，按 neuron id 升序生成普通 Data spike 入全局队列，不创建额外的内部 drain event。
+- timestep synchronization 模式按 neuron id 升序访问每个 Core 的 mapped neurons，读取上一 timestep 的 accumulation，并把 bias 当作 neuron state update 的普通输入项。每个 neuron 每 timestep 最多 firing 一次；firing 仍占用 soma_fire latency/resource，并生成普通 Data spike 入全局队列。
 - 若 neuron 达阈值产生新 spike，根据 mapping/static route 构造新的 Spike 并加入全局 SpikeQueue。
 - 模拟器内部统一使用整数 SimTime，例如 1 tick = 1 ps。hardware.yaml 中所有 ns/s 等时间在加载时一次性转换成 SimTime。
   例如：

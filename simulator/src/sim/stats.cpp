@@ -50,11 +50,10 @@ void Statistics::record_emit(std::size_t layer, std::uint32_t step, SimTime hw_c
     hw_latency_ = std::max(hw_latency_, hw_current_time);
 }
 
-void Statistics::record_state_updates(std::size_t layer, std::uint32_t step, std::uint64_t updates,
-                                      SimTime hw_current_time) {
-    layers_.at(layer).synaptic_updates += updates;
+void Statistics::record_neuron_processing(std::size_t layer, std::uint32_t step,
+                                          SimTime hw_current_time) {
+    static_cast<void>(layer);
     auto& metric = timestep(step);
-    metric.synaptic_updates += updates;
     metric.hw_end_time = std::max(metric.hw_end_time, hw_current_time);
     hw_latency_ = std::max(hw_latency_, hw_current_time);
 }
@@ -89,15 +88,14 @@ void Statistics::add_data_energy(const NocTiming& noc, std::uint64_t updates) {
     energy_.memory_pj += hardware_.energy.sram_read_pj +
                          static_cast<double>(updates) * hardware_.energy.sram_write_pj;
     energy_.synapse_pj += static_cast<double>(updates) * hardware_.energy.synapse_pj;
-    energy_.soma_pj += static_cast<double>(updates) * hardware_.energy.soma_update_pj;
+}
+
+void Statistics::add_neuron_energy(std::uint64_t updated_neurons) {
+    energy_.soma_pj += static_cast<double>(updated_neurons) * hardware_.energy.soma_update_pj;
 }
 
 void Statistics::add_fire_energy() {
     energy_.soma_pj += hardware_.energy.soma_fire_pj;
-}
-
-void Statistics::add_bias_energy(std::uint64_t updates) {
-    energy_.soma_pj += static_cast<double>(updates) * hardware_.energy.soma_update_pj;
 }
 
 void Statistics::write(const std::string& output_dir, const std::vector<float>& scores,

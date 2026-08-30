@@ -56,9 +56,11 @@ private:
     void prepare_input_timesteps();
     void inject_timestep(std::uint32_t timestep, SimTime hw_start_time);
     void process_data(Spike& spike);
-    void process_bias(Spike& spike);
+    SimTime process_neurons(std::uint32_t timestep, SimTime hw_start_time);
     void push_firings(std::size_t layer, std::uint32_t timestep,
-                      const std::vector<CoreFiringResult>& firings);
+                      const std::vector<CoreFiringResult>& firings,
+                      SimTime data_phase_start);
+    SimulationResult run_timestep_synchronization();
     const std::vector<float>& final_scores() const;
 };
 

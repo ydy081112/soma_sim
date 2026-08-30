@@ -116,6 +116,7 @@ HardwareConfig HardwareConfig::load(const std::string& path) {
     config.core.sram_read_hw_latency = hw_latency_field(hw_latency, "sram_read", 0);
     config.core.sram_write_hw_latency = hw_latency_field(hw_latency, "sram_write", 0);
     config.core.synapse_hw_latency = hw_latency_field(hw_latency, "synapse", 0);
+    config.core.soma_access_hw_latency = hw_latency_field(hw_latency, "soma_access", 0);
     config.core.soma_update_hw_latency = hw_latency_field(hw_latency, "soma_update", 0);
     config.core.soma_fire_hw_latency = hw_latency_field(hw_latency, "soma_fire", 0);
     const auto& neuron = optional_map(core, "neuron");

@@ -25,7 +25,7 @@
 - NoC 使用紧凑资源表维护 router output/link 可用时刻，不创建 per-router 事件对象。
 - 神经元状态采用 SoA 连续数组，不创建 per-neuron C++ 对象。
 - connectivity 使用 Spatial Pattern Template + source-major 权重，不展开 neuron-to-neuron 边。
-- threshold check 只检查本次被更新后进入候选集的 neuron；firing 在同一次 Core 处理内完成，不做每 tick 全状态扫描。
+- timestep synchronization 模式按 mapped neuron id 升序执行 neuron phase；Data 只写下一 timestep buffer，Bias 不进入 global queue。
 - 配置描述能力/信号线，不用具体芯片名在代码中选择微架构。
 - 源码按模块分文件，公共接口与关键时序逻辑使用简洁中文注释。
 

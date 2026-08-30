@@ -65,6 +65,9 @@ int main(int argc, char** argv) {
                 "NoC hardware latency schema");
         require(hardware.core.axon_in_hw_latency == 16000,
                 "Core hardware latency schema");
+        require(hardware.core.soma_access_hw_latency == 6000 &&
+                    hardware.core.soma_update_hw_latency == 3700,
+                "soma access and update latency schema");
         const auto mapping = soma::MappingConfig::load(root + "/compiler/mapping_output/mapping.yaml");
         mapping.validate(static_cast<std::uint32_t>(hardware.noc.router_count()));
         soma::RouterResourceTable routers(hardware);
@@ -99,14 +102,17 @@ int main(int argc, char** argv) {
                 "source-major spatial template");
 
         soma::SomaState soma_state(3, 1.0F, 1.0F, "soft", false);
-        soma_state.accumulate(2, 1.5F, 1);
-        soma_state.accumulate(0, 2.5F, 1);
-        const auto fired = soma_state.fire_all_ordered();
-        require(fired.size() == 3 && fired[0].neuron == 0 && fired[1].neuron == 0 &&
-                    fired[2].neuron == 2,
-                "firing is ordered by neuron id and preserves soft reset");
-        require(soma_state.fire_all_ordered().empty(),
-                "direct firing drains only the current update candidates");
+        const auto first_fire = soma_state.process_neuron(0, 2.5F, true, 0.0F);
+        require(first_fire.updated && first_fire.fired && first_fire.fired->neuron == 0 &&
+                    std::abs(soma_state.voltage()[0] - 1.5F) < 1e-6F,
+                "one timestep emits at most one spike and preserves soft-reset voltage");
+        const auto second_fire = soma_state.process_neuron(0, 0.0F, false, 0.0F);
+        require(second_fire.updated && second_fire.fired &&
+                    std::abs(soma_state.voltage()[0] - 0.5F) < 1e-6F,
+                "remaining membrane can fire in the next timestep");
+        const auto bias_fire = soma_state.process_neuron(2, 0.0F, false, 1.5F);
+        require(bias_fire.updated && bias_fire.fired,
+                "bias participates directly in neuron processing");
 
         soma::LayerMapping direct_mapping;
         direct_mapping.id = "direct_fire";
@@ -121,19 +127,28 @@ int main(int argc, char** argv) {
         direct_weights.dense_weight = {2.5F, 0.0F, 1.5F};
         soma::HardwareConfig direct_hardware;
         direct_hardware.core.synapse_hw_latency = 5;
-        direct_hardware.core.soma_update_hw_latency = 10;
+        direct_hardware.core.soma_access_hw_latency = 6;
+        direct_hardware.core.soma_update_hw_latency = 4;
         direct_hardware.core.soma_fire_hw_latency = 7;
         soma::Core direct_core(direct_mapping, direct_hardware, direct_weights);
-        const auto direct = direct_core.receive(0, 1.0F, 1, 100);
-        require(direct.hw_update_finish_time == 135 && direct.hw_finish_time == 156 &&
-                    direct.hw_compute_latency == 56,
-                "direct firing occupies configured soma fire latency");
-        require(direct.firings.size() == 3 && direct.firings[0].fired.neuron == 0 &&
-                    direct.firings[1].fired.neuron == 0 && direct.firings[2].fired.neuron == 2 &&
-                    direct.firings[0].hw_finish_time == 142 &&
-                    direct.firings[1].hw_finish_time == 149 &&
-                    direct.firings[2].hw_finish_time == 156,
-                "Core returns ordered Data firing times");
+        const auto accumulation = direct_core.receive(0, 1.0F, 1, 100);
+        require(accumulation.hw_finish_time == 105 &&
+                    direct_core.output_scores() == std::vector<float>({0.0F, 0.0F, 0.0F}),
+                "Data only performs synaptic accumulation");
+        const auto direct = direct_core.process_timestep(2, accumulation.hw_finish_time);
+        require(direct.mapped_neurons == 3 && direct.updated_neurons == 3 &&
+                    direct.hw_finish_time == 149 && direct.hw_compute_latency == 44,
+                "neuron processing uses mapped access plus actual update latency");
+        require(direct.firings.size() == 2 && direct.firings[0].fired.neuron == 0 &&
+                    direct.firings[1].fired.neuron == 2 &&
+                    direct.firings[0].hw_finish_time == 122 &&
+                    direct.firings[1].hw_finish_time == 149,
+                "Core emits at most one ordered firing per neuron");
+        const auto next = direct_core.process_timestep(3, direct.hw_finish_time);
+        require(next.mapped_neurons == 3 && next.updated_neurons == 2 &&
+                    next.firings.size() == 1 && next.firings[0].fired.neuron == 0 &&
+                    next.hw_finish_time == 182,
+                "remaining membrane is processed in the following timestep");
         std::cout << "focused tests passed\n";
         return 0;
     } catch (const std::exception& error) {
