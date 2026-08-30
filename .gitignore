@@ -8,5 +8,6 @@
 /input/cifar10_sample_000.npz
 /reference/*.npz
 /output_vgg16/
+/docs/background.md
 __pycache__/
 *.pyc
