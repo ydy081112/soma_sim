@@ -24,6 +24,7 @@ CoreReceiveResult Core::receive(std::uint64_t source_neuron, float value, std::u
     // SynapseEngine 直接遍历紧凑模板，回调只更新连续 SoA voltage。
     const auto updates = SynapseEngine::apply(
         weights_, source_neuron, value, mapping_.neurons,
+        // accumulate: 真正更新 neuron state
         [&](std::uint64_t destination, float delta) { soma_.accumulate(destination, delta, timestep); });
     if (updates != 0 && hardware_.core.soma_update_hw_latency >
                             std::numeric_limits<SimTime>::max() / updates) {
@@ -33,17 +34,28 @@ CoreReceiveResult Core::receive(std::uint64_t source_neuron, float value, std::u
                                        updates * hardware_.core.soma_update_hw_latency;
     const auto compute = compute_pipeline_.reserve(
         memory.hw_finish_time, hw_service_latency);
-    return CoreReceiveResult{compute.hw_finish_time,
-                             compute.hw_finish_time - hw_arrival_time, updates};
+    return complete_update(hw_arrival_time, compute, updates);
 }
 
-CoreFireResult Core::drain_one(SimTime hw_arrival_time) {
-    // 一个 fake spike 最多执行一次 soma fire，保持全局循环的一事件语义。
-    const auto reservation = compute_pipeline_.reserve(
-        hw_arrival_time, hardware_.core.soma_fire_hw_latency);
-    return CoreFireResult{reservation.hw_finish_time,
-                          reservation.hw_finish_time - hw_arrival_time,
-                          soma_.fire_one()};
+CoreReceiveResult Core::complete_update(SimTime hw_arrival_time,
+                                        const ResourceReservation& update,
+                                        std::uint64_t synaptic_updates) {
+    CoreReceiveResult result;
+    result.hw_update_finish_time = update.hw_finish_time;
+    result.hw_finish_time = update.hw_finish_time;
+    result.synaptic_updates = synaptic_updates;
+
+    // firing 按 neuron id 顺序逐次占用同一 compute pipeline，并保留各自完成时刻。
+    const auto fired = soma_.fire_all_ordered();
+    result.firings.reserve(fired.size());
+    for (const auto& neuron : fired) {
+        const auto reservation = compute_pipeline_.reserve(
+            result.hw_finish_time, hardware_.core.soma_fire_hw_latency);
+        result.hw_finish_time = reservation.hw_finish_time;
+        result.firings.push_back(CoreFiringResult{neuron, result.hw_finish_time});
+    }
+    result.hw_compute_latency = result.hw_finish_time - hw_arrival_time;
+    return result;
 }
 
 CoreReceiveResult Core::apply_bias(std::uint32_t timestep, SimTime hw_arrival_time) {
@@ -55,8 +67,7 @@ CoreReceiveResult Core::apply_bias(std::uint32_t timestep, SimTime hw_arrival_ti
     }
     const auto compute = compute_pipeline_.reserve(
         hw_arrival_time, updates * hardware_.core.soma_update_hw_latency);
-    return CoreReceiveResult{compute.hw_finish_time,
-                             compute.hw_finish_time - hw_arrival_time, updates};
+    return complete_update(hw_arrival_time, compute, updates);
 }
 
 }  // namespace soma

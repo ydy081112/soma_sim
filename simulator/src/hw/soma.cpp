@@ -1,5 +1,6 @@
 #include "soma/hw/soma.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
@@ -34,31 +35,29 @@ void SomaState::accumulate(std::uint64_t neuron, float delta, std::uint32_t time
     }
     last_timestep_[index] = timestep;
     voltage_[index] += delta;
-    // active 位防止同一 neuron 在 fake spike 排空前重复进入候选队列。
+    // active 位防止同一 Core update 内重复记录同一个候选 neuron。
     if (!readout_ && voltage_[index] >= threshold_[index] && !candidate_active_[index]) {
         candidate_active_[index] = 1;
         candidates_.push_back(neuron);
     }
 }
 
-std::optional<FiredNeuron> SomaState::fire_one() {
-    // 候选可能被后续负权重拉回阈值下，因此出队时必须重新确认。
-    while (!candidates_.empty()) {
-        const auto neuron = candidates_.front();
-        candidates_.pop_front();
+std::vector<FiredNeuron> SomaState::fire_all_ordered() {
+    // 只排序本次实际越阈值的候选；不扫描完整 neuron state。
+    std::sort(candidates_.begin(), candidates_.end());
+    std::vector<FiredNeuron> fired;
+    for (const auto neuron : candidates_) {
         const auto index = static_cast<std::size_t>(neuron);
         candidate_active_[index] = 0;
         if (voltage_[index] < threshold_[index]) continue;
-        if (reset_ == "soft") voltage_[index] -= threshold_[index];
-        else voltage_[index] = 0.0F;
-        // soft reset 后仍过阈值时重新排队，由下一枚 fake spike 再发一次。
-        if (voltage_[index] >= threshold_[index]) {
-            candidate_active_[index] = 1;
-            candidates_.push_back(neuron);
-        }
-        return FiredNeuron{neuron, 1.0F};
+        do {
+            fired.push_back(FiredNeuron{neuron, 1.0F});
+            if (reset_ == "soft") voltage_[index] -= threshold_[index];
+            else voltage_[index] = 0.0F;
+        } while (reset_ == "soft" && voltage_[index] >= threshold_[index]);
     }
-    return std::nullopt;
+    candidates_.clear();
+    return fired;
 }
 
 }  // namespace soma

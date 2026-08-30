@@ -25,12 +25,12 @@
 - NoC 使用紧凑资源表维护 router output/link 可用时刻，不创建 per-router 事件对象。
 - 神经元状态采用 SoA 连续数组，不创建 per-neuron C++ 对象。
 - connectivity 使用 Spatial Pattern Template + source-major 权重，不展开 neuron-to-neuron 边。
-- fake spike 是队列中的内部事件，用于延迟扫描/排空 soma fire 请求；不能退化为每个 tick 全量扫描。
+- threshold check 只检查本次被更新后进入候选集的 neuron；firing 在同一次 Core 处理内完成，不做每 tick 全状态扫描。
 - 配置描述能力/信号线，不用具体芯片名在代码中选择微架构。
 - 源码按模块分文件，公共接口与关键时序逻辑使用简洁中文注释。
 
 ## 验证原则
 
-- 单元测试优先覆盖：时间单位转换、队列稳定顺序、静态 route、NoC 争用、模板寻址、fake spike 排空。
+- 单元测试优先覆盖：时间单位转换、队列稳定顺序、静态 route、NoC 争用、模板寻址和有序 firing/reset。
 - 端到端测试使用仓库内的小样例；完整 VGG16 运行是单独的 benchmark，不作为每次构建的默认测试。
 - 构建目录固定使用项目内 `build/`，输出固定写入 `output/`。

@@ -2,7 +2,7 @@
 
 #include "soma/config/hardware_config.hpp"
 #include "soma/config/mapping_config.hpp"
-#include "soma/hw/buffer.hpp"
+#include "soma/hw/hardware_resource.hpp"
 #include "soma/hw/core.hpp"
 #include "soma/hw/noc/router.hpp"
 #include "soma/input_encoder.hpp"
@@ -49,7 +49,7 @@ private:
     SpikeQueue queue_;
     RouterResourceTable routers_;
     std::vector<std::unique_ptr<Core>> cores_;
-    std::vector<BufferResource> injection_ports_;
+    std::vector<HardwareResource> injection_ports_;
     Statistics stats_;
     std::map<std::uint32_t, std::vector<std::size_t>> input_by_timestep_;
 
@@ -57,8 +57,8 @@ private:
     void inject_timestep(std::uint32_t timestep, SimTime hw_start_time);
     void process_data(Spike& spike);
     void process_bias(Spike& spike);
-    void process_drain(Spike& spike);
-    void schedule_drain(std::size_t layer, std::uint32_t timestep, SimTime hw_time);
+    void push_firings(std::size_t layer, std::uint32_t timestep,
+                      const std::vector<CoreFiringResult>& firings);
     const std::vector<float>& final_scores() const;
 };
 

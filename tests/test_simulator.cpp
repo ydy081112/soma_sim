@@ -1,6 +1,7 @@
 #include "soma/common/types.hpp"
 #include "soma/config/hardware_config.hpp"
 #include "soma/config/mapping_config.hpp"
+#include "soma/hw/core.hpp"
 #include "soma/hw/noc/router.hpp"
 #include "soma/hw/soma.hpp"
 #include "soma/input_encoder.hpp"
@@ -97,13 +98,42 @@ int main(int argc, char** argv) {
                     std::abs(destination[1] - 1.5F) < 1e-6F,
                 "source-major spatial template");
 
-        soma::SomaState soma_state(2, 1.0F, 1.0F, "soft", false);
-        soma_state.accumulate(0, 2.5F, 0);
-        require(soma_state.has_pending(), "threshold candidate is queued");
-        require(soma_state.fire_one().has_value() && soma_state.has_pending(),
-                "soft-reset fake-spike drain keeps remaining threshold");
-        require(soma_state.fire_one().has_value() && !soma_state.has_pending(),
-                "fake-spike drain emits one spike at a time");
+        soma::SomaState soma_state(3, 1.0F, 1.0F, "soft", false);
+        soma_state.accumulate(2, 1.5F, 1);
+        soma_state.accumulate(0, 2.5F, 1);
+        const auto fired = soma_state.fire_all_ordered();
+        require(fired.size() == 3 && fired[0].neuron == 0 && fired[1].neuron == 0 &&
+                    fired[2].neuron == 2,
+                "firing is ordered by neuron id and preserves soft reset");
+        require(soma_state.fire_all_ordered().empty(),
+                "direct firing drains only the current update candidates");
+
+        soma::LayerMapping direct_mapping;
+        direct_mapping.id = "direct_fire";
+        direct_mapping.op = soma::LayerOp::Linear;
+        direct_mapping.neurons = 3;
+        direct_mapping.source_neurons = 1;
+        direct_mapping.output_channels = 3;
+        direct_mapping.threshold = 1.0F;
+        direct_mapping.reset = "soft";
+        soma::LayerWeights direct_weights;
+        direct_weights.op = soma::LayerOp::Linear;
+        direct_weights.dense_weight = {2.5F, 0.0F, 1.5F};
+        soma::HardwareConfig direct_hardware;
+        direct_hardware.core.synapse_hw_latency = 5;
+        direct_hardware.core.soma_update_hw_latency = 10;
+        direct_hardware.core.soma_fire_hw_latency = 7;
+        soma::Core direct_core(direct_mapping, direct_hardware, direct_weights);
+        const auto direct = direct_core.receive(0, 1.0F, 1, 100);
+        require(direct.hw_update_finish_time == 135 && direct.hw_finish_time == 156 &&
+                    direct.hw_compute_latency == 56,
+                "direct firing occupies configured soma fire latency");
+        require(direct.firings.size() == 3 && direct.firings[0].fired.neuron == 0 &&
+                    direct.firings[1].fired.neuron == 0 && direct.firings[2].fired.neuron == 2 &&
+                    direct.firings[0].hw_finish_time == 142 &&
+                    direct.firings[1].hw_finish_time == 149 &&
+                    direct.firings[2].hw_finish_time == 156,
+                "Core returns ordered Data firing times");
         std::cout << "focused tests passed\n";
         return 0;
     } catch (const std::exception& error) {

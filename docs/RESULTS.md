@@ -12,19 +12,19 @@
 
 - Queue drained: yes
 - Input spikes: 219,843
-- Processed data spikes: 5,336,620
-- Hardware latency: 19.8095648631 s（不含人为 timestep 间隔）
-- Host latency: 22.5399 s on the current host
+- Processed data spikes: 5,336,573
+- Hardware latency: 8.8170754285 s（不含人为 timestep 间隔）
+- Host latency: 21.4050 s on the current host
 - Peak RSS including compressed/uncompressed weights: about 132 MiB
 - SOMA output prediction / label: `3 / 3`
 - Preserved SANA-FE reference prediction: `3`
-- Output-score cosine similarity to SANA-FE reference: `0.9989644`
+- Output-score cosine similarity to SANA-FE reference: `0.9988768`
 
 SOMA scores:
 
 ```text
-[-304.5051, -1227.7584, -141.8237, 2765.5813, -284.5259,
-  127.7116,   -87.6223, -187.6393, -380.2579, -279.5500]
+[-299.2880, -1223.5084, -138.8058, 2734.7698, -268.9496,
+  111.0878,   -84.9267, -192.5496, -372.6299, -265.5867]
 ```
 
 SANA-FE reference scores:
@@ -34,4 +34,4 @@ SANA-FE reference scores:
   149.9703,   -27.2136, -156.7256, -390.7198, -267.2784]
 ```
 
-两者分类一致，但不能把接近的 score 当作 cycle-accurate 数值相等：SOMA 在 timestep barrier 内对每枚到达 spike 做 threshold，参考转换在完整 timestep 聚合后 threshold；此外本版 VGG mapping 使用 aggregated partition。机器相关的 `host_latency` 也不是固定验收常数。
+两者分类一致，但不能把接近的 score 当作 cycle-accurate 数值相等：SOMA 在 timestep barrier 内对每枚到达 spike 直接完成 threshold/firing，参考转换在完整 timestep 聚合后 threshold；此外本版 VGG mapping 使用 aggregated partition。机器相关的 `host_latency` 也不是固定验收常数。

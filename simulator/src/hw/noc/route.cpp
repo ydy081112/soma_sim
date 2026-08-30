@@ -4,7 +4,7 @@
 #include <stdexcept>
 
 namespace soma {
-
+// 用来找源router的输出口
 Port RouteGeometry::output_port(std::uint32_t source, std::uint32_t destination) const {
     // Router id 使用 row-major 编码；这里只接受 Manhattan 相邻的一跳。
     const auto sr = row(source);

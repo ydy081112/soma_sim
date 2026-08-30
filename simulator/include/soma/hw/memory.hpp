@@ -1,6 +1,6 @@
 #pragma once
 
-#include "soma/hw/buffer.hpp"
+#include "soma/hw/hardware_resource.hpp"
 
 namespace soma {
 
@@ -10,7 +10,7 @@ public:
     ResourceReservation write(SimTime hw_arrival_time, SimTime hw_latency);
 
 private:
-    BufferResource port_;
+    HardwareResource port_;
 };
 
 }  // namespace soma

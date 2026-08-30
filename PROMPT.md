@@ -35,7 +35,7 @@ input buffer → synapse/weight SRAM → neuron state update → threshold。
      先不用像前续版本里面一样加一些gated的机制
 - connectivity 不展开。SynapseEngine 根据 source neuron 从 Spatial Pattern Template 直接得到 destination spatial block 和连续 Cout 权重块。这里尽量写的省时间一点，因为几十万数量级的spike，每个都是需要取存的，仿真时间会很多的
 - neuron state（threshold/voltage这些） 使用连续数组/SoA，不创建 per-neuron C++ object。记住，这个项目的主要目标是快速仿真，设计的时候代码写法以这个为目标来做
-- 对于neuron state不要每次是spike都检查一次，只有spike进到core里面加上去，才检查，所以为了放置最后一个spike激活了但还有剩余的voltage大于电压（因为一个spike只会触发一个新的spike，不能触发多个），你就设置一个fake spike在队尾。这个fake spike我在这里不多讲了，你需要到前续版本里面自己去看，一定要仔细看然后实现这个fake spike。他的主要作用就是不要让每次都去检查一遍这个state有没有超过阈值，这样就变成time-driven simulator了
+- neuron state 只检查本次 spike 实际更新后进入候选集的 neuron，不扫描完整 state。Data 到达 Core 后直接完成 threshold check 和 firing；每次 firing 仍占用 soma_fire latency/resource，按 neuron id 升序生成普通 Data spike 入全局队列，不创建额外的内部 drain event。
 - 若 neuron 达阈值产生新 spike，根据 mapping/static route 构造新的 Spike 并加入全局 SpikeQueue。
 - 模拟器内部统一使用整数 SimTime，例如 1 tick = 1 ps。hardware.yaml 中所有 ns/s 等时间在加载时一次性转换成 SimTime。
   例如：
@@ -62,7 +62,7 @@ hw/
 - synapse.hpp/cpp   pe.py里面的小部件的函数
 - soma.hpp/cpp   pe.py里面的小部件的函数
 - memory.hpp/cpp
-- buffer.hpp/cpp
+- hardware_resource.hpp/cpp
 main.cpp
 input_encoder.hpp/.cpp
 # Statistics 至少统计（专门放一个文件夹/output，可以参考前续版本）：

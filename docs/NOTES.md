@@ -6,11 +6,32 @@
 
 ## [已完成]
 
+### 2026-08-31：敏感背景文件 Git 历史清理
+
+- 将 `docs/background.md` 加入 `.gitignore` 并停止 Git 跟踪，本地文件保持不变；安全修复提交未混入现有其他未提交代码。
+- 确认该路径曾存在于已推送历史后，在隔离临时克隆中重写 `main` 全部历史并删除该路径；清理后所有可达 ref 均不再包含该文件或凭据标记。
+- 使用带旧远程 SHA 租约的 `--force-with-lease` 推送成功，GitHub `main` 与本地 `main` 均更新到清理后提交 `dc6537b`；远程没有其他 branch/tag 需要处理。
+- 验证：本地文件存在且被 `.gitignore` 命中，`git ls-files docs/background.md` 为空，`main == origin/main`，当前其他未提交改动完整保留。本轮仅修改 Git 元数据和 ignore 规则，未运行构建测试。
+- 安全边界：远程历史清理不能撤销他人已经克隆、缓存或 fork 的内容，相关服务器密码仍必须轮换。
+
+### 2026-08-31：HardwareResource 抽象重命名
+
+- 将通用 free-time 资源抽象从 `buffer.hpp/.cpp` / `BufferResource` 重命名为 `hardware_resource.hpp/.cpp` / `HardwareResource`，同步更新 CMake、Core、Memory、Simulator 和 PROMPT 引用。
+- 保留 `ResourceReservation`、已有 free-time 注释和所有 reservation 时序行为；Release 构建、CTest 1/1 与最小样例通过，结果仍为 6 个 data spike、`412900 ps`、预测 0。
+
+### 2026-08-31：删除 SomaDrain event
+
+- 删除 `SpikeKind::SomaDrain`、Core drain API/状态和 Simulator 二次调度；Data/Bias 对 Core 的同一次更新现在直接完成 threshold check、reset 与 firing。
+- 候选集只包含本次实际越阈值的 neuron，不做全状态扫描；firing 按 neuron id 升序逐次占用配置中的 `soma_fire` resource/latency，并在各自完成时刻作为普通 Data spike 入全局队列。
+- 保持 global queue、NoC/Core resource-free-time、energy 和 processed/emitted statistics 口径；state update 仍记录在 update 完成时刻，output spike 仍记录在 firing 完成时刻。
+- 验证：Release 构建和 CTest 1/1 通过，新增有序 soft-reset firing 及逐次 `soma_fire` 时延断言；最小样例保持 6 个 data spike、`412900 ps`、预测 0。
+- VGG16 256-step 全量队列排空：处理/发射 5,336,573 个 spike，hardware latency 8.8170754285 s，host latency 21.4050 s，peak RSS 约 132 MiB；预测/标签/参考均为 3，score cosine 为 0.9988768。
+
 ### 2026-08-31：timestep synchronization 注入与时间推进
 
 - 在 `hardware.yaml` / `HardwareConfig` 中增加 `execution_mode: timestep_synchronization`，当前 Loihi-style 配置显式启用；当前版本拒绝未实现的其他 mode，但没有加入占位分支。
 - input spike 的逻辑 timestep 改为从 1 开始，生成器和现有 CSV 的 `generated_time/current_time` 均为 0；删除 1 秒的人工 timestep period。
-- simulator 只注入当前 timestep，完整排空其 Data/Bias/SomaDrain、NoC 和内部派生事件后，再从实际硬件完成时刻注入下一步；派生 spike 始终继承原逻辑 timestep。global queue、Core/NoC resource-free-time 和模块边界保持不变。
+- simulator 只注入当前 timestep，完整排空其 Data/Bias、NoC 和内部派生事件后，再从实际硬件完成时刻注入下一步；派生 spike 始终继承原逻辑 timestep。global queue、Core/NoC resource-free-time 和模块边界保持不变。
 - 队列在同步模式按 `(timestep, generated_time, sequence_id)` 排序；默认构造仍保留硬件时间优先语义，便于后续无 timestep barrier 的架构扩展。
 - 验证：Python 工具语法检查、Release 构建、CTest 1/1 和最小样例均通过；VGG16 256-step 全量队列排空，处理 5,336,620 个 data spike，硬件时延 19.8095648631 s，预测/标签/参考均为 3，score cosine 为 0.9989644。
 - VGG sample 的 timestep 1 没有 input spike，但仍完成 Bias/神经元活动，`hardware_end_time_ps=635699200`；统计从 timestep 1 开始且不再生成 timestep 0 行。本节取代旧 benchmark 中依赖 `t * 1e12 ps` 并事后扣除 idle 的时间口径。

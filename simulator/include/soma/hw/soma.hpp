@@ -2,8 +2,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <deque>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -22,8 +20,7 @@ public:
     std::uint64_t apply_bias(const std::vector<float>& bias, std::uint32_t output_channels,
                              std::uint32_t timestep);
     void accumulate(std::uint64_t neuron, float delta, std::uint32_t timestep);
-    std::optional<FiredNeuron> fire_one();
-    bool has_pending() const { return !candidates_.empty(); }
+    std::vector<FiredNeuron> fire_all_ordered();
     const std::vector<float>& voltage() const { return voltage_; }
 
 private:
@@ -31,7 +28,7 @@ private:
     std::vector<float> threshold_;
     std::vector<std::uint32_t> last_timestep_;
     std::vector<std::uint8_t> candidate_active_;
-    std::deque<std::uint64_t> candidates_;
+    std::vector<std::uint64_t> candidates_;
     float leak_ = 1.0F;
     std::string reset_;
     bool readout_ = false;

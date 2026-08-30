@@ -7,8 +7,8 @@
 
 namespace soma {
 
-// Bias 和 SomaDrain 都是内部控制事件，只有 Data 表示跨层传输的 spike。
-enum class SpikeKind : std::uint8_t { Data, Bias, SomaDrain };
+// Bias 是 Core 内部更新事件，Data 表示需要跨层传输的 spike。
+enum class SpikeKind : std::uint8_t { Data, Bias };
 
 struct Spike {
     SpikeKind kind = SpikeKind::Data;

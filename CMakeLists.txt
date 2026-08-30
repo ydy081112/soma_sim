@@ -20,7 +20,7 @@ add_library(soma_sim_lib
     simulator/src/sim/stats.cpp
     simulator/src/hw/noc/route.cpp
     simulator/src/hw/noc/router.cpp
-    simulator/src/hw/buffer.cpp
+    simulator/src/hw/hardware_resource.cpp
     simulator/src/hw/memory.cpp
     simulator/src/hw/synapse.cpp
     simulator/src/hw/soma.cpp
@@ -41,4 +41,3 @@ if(SOMA_BUILD_TESTS)
     target_link_libraries(soma-tests PRIVATE soma_sim_lib)
     add_test(NAME soma-focused-tests COMMAND soma-tests ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
-
