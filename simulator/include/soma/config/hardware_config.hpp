@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <string>
 
 namespace soma {
@@ -58,6 +59,9 @@ struct HardwareConfig {
         bool receive_ack = false;
         bool receive_credit = false;
 
+        // key 是参与同步的 tile 数下界，查询时沿用 SANA-FE 的向下取整表语义。
+        std::map<std::uint32_t, SimTime> timestep_sync_hw_latency;
+
         // req+ack 同时存在时按异步握手资源占用建模。
         bool asynchronous() const { return send_req && receive_ack; }
         SimTime router_hw_latency() const {
@@ -67,6 +71,7 @@ struct HardwareConfig {
         std::size_t router_count() const {
             return static_cast<std::size_t>(rows) * cols;
         }
+        SimTime synchronization_hw_latency(std::size_t mapped_tiles) const;
     } noc;
 
     struct Core {

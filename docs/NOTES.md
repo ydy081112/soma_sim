@@ -2,9 +2,18 @@
 
 ## [进行中]
 
-- 无。
+- 2026-08-31：核对本机 i7-11700 与远程 Xeon Platinum 8352S 的 CPU、频率、缓存、NUMA 和仿真线程模型，评估 CPU 差异对 VGG16 `host_latency` / Timestep/s 的影响。假设沿用现有两套 256-step 结果，不重跑完整 benchmark；下一步采集两机硬件/负载信息并区分“CPU 性能差异”和“模拟器实现差异”。
 
 ## [已完成]
+
+### 2026-08-31：VGG16 physical Core packet timing
+
+- 新增 Tile/physical Core 地址层；mapping 按 `max_neurons=1024` 将 layer 连续拆分，并用 `physical_neuron_order: channel_major` 对齐 SANA-FE 空间层的 Core 切分。当前显式-pool SOMA 图映射为 310 cores / 78 tiles。
+- 一个 firing 按其连接触达的 destination Core 集合生成 packet；packet route 由 source/destination Tile 生成确定性多跳 XY 路径，继续使用紧凑 router output/link free-time 表，不实例化 Router 或 synapse 边。
+- destination Core 使用 Spatial Pattern 只遍历本 Core local updates，并按 `N_local_updates * synapse_latency` 串行占用 Core；soma loop 每个 physical Core 最多 1024 neurons、Core 间并行。
+- 解析并应用 timestep synchronization latency table；70/78 mapped tiles 均取 1.8 us。无流量满 Core timestep 精确为 `1024 * (6.0 ns + 3.7 ns) + 1.8 us = 11.7328 us`。
+- summary/CSV 新增 physical core/tile、packets、NoC hops、synaptic updates、逐 timestep hardware latency，以及 soma/synapse/NoC/synchronization breakdown。
+- 验证：Release build 与 CTest 1/1 通过；最小样例完成。完整 VGG16 处理 146,488,599 packets、1,813,376,089 hops、3,569,567,135 updates，hardware latency `0.5678836707 s`，相对 SANA-FE `0.5664435778 s` 为 `+0.2542%`；prediction/label 均为 3，host latency 206.031 s，peak RSS 约 203 MiB。对比已保存的远程 SANA-FE host time 2140.541 s，当前 SOMA 观测快 `10.3894x`，但两数据非同机且 profiling 设置不同。
 
 ### 2026-08-31：Loihi / SANA-FE timestep-synchronous 两阶段执行
 

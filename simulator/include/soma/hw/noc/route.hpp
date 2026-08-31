@@ -15,8 +15,10 @@ class RouteGeometry {
 public:
     explicit RouteGeometry(const HardwareConfig::Noc& noc) : rows_(noc.rows), cols_(noc.cols) {}
 
-    std::uint32_t row(std::uint32_t router) const { return router / cols_; }
-    std::uint32_t col(std::uint32_t router) const { return router % cols_; }
+    // 与 SANA-FE 相同：连续 tile id 先沿 NoC 高度方向增长，再进入下一列。
+    std::uint32_t x(std::uint32_t router) const { return router / rows_; }
+    std::uint32_t y(std::uint32_t router) const { return router % rows_; }
+    std::uint32_t router(std::uint32_t x, std::uint32_t y) const { return x * rows_ + y; }
     Port output_port(std::uint32_t source, std::uint32_t destination) const;
     void validate(const StaticRoute& route) const;
     static std::string to_string(Port port);
@@ -27,4 +29,3 @@ private:
 };
 
 }  // namespace soma
-

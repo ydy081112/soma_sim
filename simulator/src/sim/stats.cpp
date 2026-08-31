@@ -29,13 +29,41 @@ TimestepStats& Statistics::timestep(std::uint32_t index) {
     return timesteps_[index];
 }
 
-void Statistics::record_data(std::size_t layer, std::uint32_t step, std::uint64_t updates,
-                             SimTime hw_current_time) {
+void Statistics::set_physical_topology(std::uint64_t physical_cores,
+                                       std::uint64_t mapped_tiles) {
+    physical_core_count_ = physical_cores;
+    mapped_tile_count_ = mapped_tiles;
+}
+
+void Statistics::begin_timestep(std::uint32_t step, SimTime hw_start_time) {
+    auto& metric = timestep(step);
+    metric.hw_start_time = hw_start_time;
+    metric.hw_end_time = std::max(metric.hw_end_time, hw_start_time);
+}
+
+void Statistics::complete_timestep(std::uint32_t step, SimTime hw_end_time,
+                                   SimTime synchronization_hw_latency) {
+    auto& metric = timestep(step);
+    metric.synchronization_hw_latency += synchronization_hw_latency;
+    metric.hw_end_time = std::max(metric.hw_end_time, hw_end_time);
+    breakdown_.synchronization_hw_latency += synchronization_hw_latency;
+    hw_latency_ = std::max(hw_latency_, hw_end_time);
+}
+
+void Statistics::record_packet(std::size_t layer, std::uint32_t step, std::uint64_t updates,
+                               const NocTiming& noc, SimTime hw_current_time) {
     ++processed_spikes_;
+    ++packets_;
+    noc_hops_ += noc.hops;
+    synaptic_updates_ += updates;
     ++layers_.at(layer).processed_spikes;
+    ++layers_.at(layer).packets;
+    layers_.at(layer).noc_hops += noc.hops;
     layers_.at(layer).synaptic_updates += updates;
     auto& metric = timestep(step);
     ++metric.processed_spikes;
+    ++metric.packets;
+    metric.noc_hops += noc.hops;
     metric.synaptic_updates += updates;
     metric.hw_end_time = std::max(metric.hw_end_time, hw_current_time);
     hw_latency_ = std::max(hw_latency_, hw_current_time);
@@ -64,17 +92,29 @@ void Statistics::record_host_latency(std::size_t layer, std::uint32_t step,
     timestep(step).host_latency_s += host_latency_s;
 }
 
-void Statistics::add_inject_hw_latency(SimTime hw_latency) {
+void Statistics::add_inject_hw_latency(std::uint32_t, SimTime hw_latency) {
     breakdown_.pe_inject_hw_latency += hw_latency;
 }
-void Statistics::add_noc_hw_latency(const NocTiming& timing) {
+void Statistics::add_noc_hw_latency(std::uint32_t step, const NocTiming& timing) {
     // traversal、congestion 和 link busy 分开累计，便于定位带宽瓶颈。
     breakdown_.noc_traversal_hw_latency += timing.hw_traversal_latency;
     breakdown_.router_congestion_hw_latency += timing.hw_congestion_latency;
     breakdown_.link_busy_hw_latency += timing.hw_link_busy_latency;
+    auto& metric = timestep(step);
+    metric.noc_traversal_hw_latency += timing.hw_traversal_latency;
+    metric.noc_congestion_hw_latency += timing.hw_congestion_latency;
 }
-void Statistics::add_compute_hw_latency(SimTime hw_latency) {
-    breakdown_.pe_compute_hw_latency += hw_latency;
+void Statistics::add_synapse_hw_latency(std::uint32_t step, SimTime service_hw_latency,
+                                        SimTime total_hw_latency) {
+    breakdown_.synapse_service_hw_latency += service_hw_latency;
+    breakdown_.pe_compute_hw_latency += total_hw_latency;
+    timestep(step).synapse_service_hw_latency += service_hw_latency;
+}
+void Statistics::add_soma_hw_latency(std::uint32_t step, SimTime service_hw_latency,
+                                     SimTime total_hw_latency) {
+    breakdown_.soma_service_hw_latency += service_hw_latency;
+    breakdown_.pe_compute_hw_latency += total_hw_latency;
+    timestep(step).soma_service_hw_latency += service_hw_latency;
 }
 
 void Statistics::add_data_energy(const NocTiming& noc, std::uint64_t updates) {
@@ -110,8 +150,13 @@ void Statistics::write(const std::string& output_dir, const std::vector<float>& 
             << "  \"completed\": " << (stopped_early_ ? "false" : "true") << ",\n"
             << "  \"hardware_latency_ps\": " << hw_latency_ << ",\n"
             << "  \"hardware_latency_s\": " << static_cast<double>(hw_latency_) / kPsPerSecond << ",\n"
+            << "  \"physical_core_count\": " << physical_core_count_ << ",\n"
+            << "  \"mapped_tile_count\": " << mapped_tile_count_ << ",\n"
             << "  \"total_spikes\": " << processed_spikes_ << ",\n"
             << "  \"total_emitted_spikes\": " << emitted_spikes_ << ",\n"
+            << "  \"packets\": " << packets_ << ",\n"
+            << "  \"noc_hops\": " << noc_hops_ << ",\n"
+            << "  \"synaptic_updates\": " << synaptic_updates_ << ",\n"
             << "  \"host_latency_s\": " << host_latency_s_ << ",\n"
             << "  \"host_processed_spikes_per_sec\": "
             << host_rate(processed_spikes_, host_latency_s_) << ",\n"
@@ -120,12 +165,18 @@ void Statistics::write(const std::string& output_dir, const std::vector<float>& 
                    breakdown_.pe_inject_hw_latency, hardware_.hw_cycle_time_ps) << ",\n"
             << "    \"pe_compute_cycles\": " << ceil_cycles(
                    breakdown_.pe_compute_hw_latency, hardware_.hw_cycle_time_ps) << ",\n"
+            << "    \"soma_service_cycles\": " << ceil_cycles(
+                   breakdown_.soma_service_hw_latency, hardware_.hw_cycle_time_ps) << ",\n"
+            << "    \"synapse_service_cycles\": " << ceil_cycles(
+                   breakdown_.synapse_service_hw_latency, hardware_.hw_cycle_time_ps) << ",\n"
             << "    \"noc_traversal_cycles\": " << ceil_cycles(
                    breakdown_.noc_traversal_hw_latency, hardware_.hw_cycle_time_ps) << ",\n"
             << "    \"router_congestion_cycles\": " << ceil_cycles(
                    breakdown_.router_congestion_hw_latency, hardware_.hw_cycle_time_ps) << ",\n"
             << "    \"link_busy_cycles\": " << ceil_cycles(
-                   breakdown_.link_busy_hw_latency, hardware_.hw_cycle_time_ps) << "\n"
+                   breakdown_.link_busy_hw_latency, hardware_.hw_cycle_time_ps) << ",\n"
+            << "    \"timestep_synchronization_cycles\": " << ceil_cycles(
+                   breakdown_.synchronization_hw_latency, hardware_.hw_cycle_time_ps) << "\n"
             << "  },\n"
             << "  \"energy_pj\": {\n"
             << "    \"axon\": " << energy_.axon_pj << ",\n"
@@ -147,29 +198,38 @@ void Statistics::write(const std::string& output_dir, const std::vector<float>& 
     summary << "\n}\n";
 
     std::ofstream layer_csv(std::filesystem::path(output_dir) / "layer_metrics.csv");
-    layer_csv << "layer_id,processed_spikes,emitted_spikes,synaptic_updates,"
+    layer_csv << "layer_id,processed_spikes,emitted_spikes,packets,noc_hops,synaptic_updates,"
                  "host_latency_s,host_processed_spikes_per_sec\n";
     layer_csv << std::setprecision(12);
     for (std::size_t i = 0; i < layers_.size(); ++i) {
         const auto& metric = layers_[i];
         layer_csv << mapping_.layers[i].id << ',' << metric.processed_spikes << ','
-                  << metric.emitted_spikes << ',' << metric.synaptic_updates << ','
+                  << metric.emitted_spikes << ',' << metric.packets << ',' << metric.noc_hops << ','
+                  << metric.synaptic_updates << ','
                   << metric.host_latency_s << ','
                   << host_rate(metric.processed_spikes, metric.host_latency_s) << '\n';
     }
 
     std::ofstream timestep_csv(std::filesystem::path(output_dir) / "timestep_metrics.csv");
-    timestep_csv << "timestep,processed_spikes,emitted_spikes,synaptic_updates,"
-                    "host_latency_s,host_processed_spikes_per_sec,hardware_end_time_ps\n";
+    timestep_csv << "timestep,processed_spikes,emitted_spikes,packets,noc_hops,synaptic_updates,"
+                    "host_latency_s,host_processed_spikes_per_sec,hardware_latency_ps,"
+                    "hardware_end_time_ps,soma_service_cycles,synapse_service_cycles,"
+                    "noc_traversal_cycles,noc_congestion_cycles,timestep_synchronization_cycles\n";
     timestep_csv << std::setprecision(12);
     // timestep synchronization 的逻辑编号从 1 开始，不输出虚构的 timestep 0。
     const std::size_t first_timestep = hardware_.timestep_synchronization() ? 1 : 0;
     for (std::size_t i = first_timestep; i < timesteps_.size(); ++i) {
         const auto& metric = timesteps_[i];
         timestep_csv << i << ',' << metric.processed_spikes << ',' << metric.emitted_spikes << ','
-                     << metric.synaptic_updates << ',' << metric.host_latency_s << ','
+                     << metric.packets << ',' << metric.noc_hops << ',' << metric.synaptic_updates << ','
+                     << metric.host_latency_s << ','
                      << host_rate(metric.processed_spikes, metric.host_latency_s) << ','
-                     << metric.hw_end_time << '\n';
+                     << (metric.hw_end_time - metric.hw_start_time) << ',' << metric.hw_end_time << ','
+                     << ceil_cycles(metric.soma_service_hw_latency, hardware_.hw_cycle_time_ps) << ','
+                     << ceil_cycles(metric.synapse_service_hw_latency, hardware_.hw_cycle_time_ps) << ','
+                     << ceil_cycles(metric.noc_traversal_hw_latency, hardware_.hw_cycle_time_ps) << ','
+                     << ceil_cycles(metric.noc_congestion_hw_latency, hardware_.hw_cycle_time_ps) << ','
+                     << ceil_cycles(metric.synchronization_hw_latency, hardware_.hw_cycle_time_ps) << '\n';
     }
 }
 

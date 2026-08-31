@@ -24,6 +24,7 @@ add_library(soma_sim_lib
     simulator/src/hw/memory.cpp
     simulator/src/hw/synapse.cpp
     simulator/src/hw/soma.cpp
+    simulator/src/hw/tile.cpp
     simulator/src/hw/core.cpp
     simulator/src/input_encoder.cpp
     simulator/src/sim/simulator.cpp

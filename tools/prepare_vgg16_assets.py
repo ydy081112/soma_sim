@@ -7,7 +7,7 @@ import argparse
 import csv
 import math
 from pathlib import Path
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 
@@ -78,15 +78,24 @@ def add_spatial(arrays: Dict[str, np.ndarray], prefix: str, weight: np.ndarray,
     arrays[f"{prefix}_pattern_weight_offset"] = plan["kernel_index"] * multiplier
 
 
-def layer_yaml(layer: Dict[str, object], router: int, next_id: str) -> List[str]:
-    lines = [f"    - id: {layer['id']}", "      partition: aggregated", f"      op: {layer['op']}",
-             f"      pe: {router}", "      core: 0", f"      router: {router}",
+CORES_PER_TILE = 4
+MAX_NEURONS_PER_CORE = 1024
+NOC_ROWS = 128
+
+
+def layer_yaml(layer: Dict[str, object], start_core: int, next_id: str) -> List[str]:
+    tile = start_core // CORES_PER_TILE
+    core = start_core % CORES_PER_TILE
+    core_count = math.ceil(int(layer["neurons"]) / MAX_NEURONS_PER_CORE)
+    lines = [f"    - id: {layer['id']}", "      partition: contiguous_physical", f"      op: {layer['op']}",
+             f"      pe: {tile}", f"      core: {core}", f"      router: {tile}",
              f"      source_neurons: {layer['source_neurons']}", f"      neurons: {layer['neurons']}",
              f"      input_h: {layer.get('input_h', 1)}", f"      input_w: {layer.get('input_w', 1)}",
              f"      input_channels: {layer['input_channels']}",
              f"      output_h: {layer.get('output_h', 1)}", f"      output_w: {layer.get('output_w', 1)}",
              f"      output_channels: {layer['output_channels']}",
-             f"      aggregate_core_count: {math.ceil(int(layer['neurons']) / 1024)}",
+             f"      aggregate_core_count: {core_count}",
+             f"      physical_neuron_order: {'logical' if layer['op'] == 'linear' else 'channel_major'}",
              f"      weight_prefix: {layer['id']}"]
     if layer["op"] != "linear" or layer["id"] != "readout":
         lines += ["      threshold: 1.0", "      leak: 1.0", "      reset: soft"]
@@ -97,6 +106,19 @@ def layer_yaml(layer: Dict[str, object], router: int, next_id: str) -> List[str]
     if layer["id"] == "readout":
         lines.append("      readout: true")
     return lines
+
+
+def xy_route(source: int, destination: int) -> List[int]:
+    x, y = divmod(source, NOC_ROWS)
+    dx, dy = divmod(destination, NOC_ROWS)
+    route = [source]
+    while x != dx:
+        x += 1 if x < dx else -1
+        route.append(x * NOC_ROWS + y)
+    while y != dy:
+        y += 1 if y < dy else -1
+        route.append(x * NOC_ROWS + y)
+    return route
 
 
 def build_assets(source_path: Path, weights_path: Path, mapping_path: Path) -> None:
@@ -146,19 +168,26 @@ def build_assets(source_path: Path, weights_path: Path, mapping_path: Path) -> N
     np.savez_compressed(weights_path, **arrays)
 
     mapping_path.parent.mkdir(parents=True, exist_ok=True)
-    lines = ["mapping:", "  model: vgg16_if_snn_cifar10", "  policy: aggregated_layer_partition_to_pe_core",
+    lines = ["mapping:", "  model: vgg16_if_snn_cifar10", "  policy: contiguous_physical_core_partitions",
              "  hardware: arch/hardware.yaml", "  layers:", "    - id: input", "      partition: virtual",
              "      op: input", "      pe: 0", "      core: 0", "      router: 0", "      neurons: 6144",
              "      input_h: 32", "      input_w: 32", "      input_channels: 6", "      output_h: 32",
-             "      output_w: 32", "      output_channels: 6", "      next: conv0", "      virtual_input: true"]
+             "      output_w: 32", "      output_channels: 6", "      aggregate_core_count: 6",
+             "      physical_neuron_order: channel_major", "      next: conv0", "      virtual_input: true"]
+    core_cursor = 6
+    placements = [("input", 0)]
     for index, layer in enumerate(layers):
         next_id = str(layers[index + 1]["id"]) if index + 1 < len(layers) else ""
-        lines.extend(layer_yaml(layer, index + 1, next_id))
+        lines.extend(layer_yaml(layer, core_cursor, next_id))
+        placements.append((str(layer["id"]), core_cursor // CORES_PER_TILE))
+        core_cursor += math.ceil(int(layer["neurons"]) / MAX_NEURONS_PER_CORE)
     lines.append("  routes:")
-    ids: Sequence[str] = ["input"] + [str(layer["id"]) for layer in layers]
-    for index in range(len(ids) - 1):
-        lines += [f"    - from: {ids[index]}", f"      to: {ids[index + 1]}",
-                  f"      routers: [{index}, {index + 1}]"]
+    for index in range(len(placements) - 1):
+        source_id, source_router = placements[index]
+        target_id, target_router = placements[index + 1]
+        route = ", ".join(str(router) for router in xy_route(source_router, target_router))
+        lines += [f"    - from: {source_id}", f"      to: {target_id}",
+                  f"      routers: [{route}]"]
     mapping_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"wrote {weights_path} ({weights_path.stat().st_size / 1024**2:.1f} MiB)")
     print(f"wrote {mapping_path}")

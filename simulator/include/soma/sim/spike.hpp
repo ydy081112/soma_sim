@@ -14,6 +14,9 @@ struct Spike {
     std::uint32_t timestep = 0;
     std::size_t source_layer = 0;
     std::uint64_t source_neuron = 0;
+    std::uint32_t source_physical_core = 0;
+    std::size_t destination_layer = 0;
+    std::uint32_t destination_partition = 0;
     float value = 1.0F;
 };
 

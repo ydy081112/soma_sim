@@ -15,7 +15,7 @@ python3 tools/prepare_vgg16_assets.py \
   --timesteps 256
 ```
 
-脚本把 `[Kh,Kw,Cin,Cout]` 重排为 `[Cin,Kh,Kw,Cout]`，为每层 deduplicate spatial plan，并生成 `compiler/mapping_output/vgg16_mapping.yaml`。大于 1024 neuron 的 VGG layer 在本 MVP 中标成 `partition: aggregated`，同时记录 `aggregate_core_count`；这用于快速架构级运行，不等价于编译栈未来生成的逐 Core multicast mapping。
+脚本把 `[Kh,Kw,Cin,Cout]` 重排为 `[Cin,Kh,Kw,Cout]`，为每层 deduplicate spatial plan，并生成 `compiler/mapping_output/vgg16_mapping.yaml`。每层按最多 1024 neurons 连续映射到 physical Cores，空间层采用与 SANA-FE 相同的 channel-major 物理顺序；一个 firing 按 destination Core 集合 packetize，但仍通过 Spatial Pattern 在 packet 到达时生成 local updates，不展开全量 synapse。
 
 运行：
 
@@ -29,6 +29,6 @@ python3 tools/prepare_vgg16_assets.py \
 
 完整 256-step 是 benchmark，不进入默认 CTest。可先加 `--max-events 100000` 检查吞吐与内存，但这种输出会明确标记 `completed: false`，不能当成分类结果。
 
-结果中的 `hardware_latency` 是目标硬件时间轴上的模拟时延；`host_latency` 是当前主机执行模拟器的 wall-clock 耗时。VGG 输入的逻辑 timestep 从 1 到 256，CSV 中 `generated_time/current_time` 全部为 0；每步先处理上一 timestep buffer，再排空本步 Data/NoC/accumulation。sample 000 的 timestep 1 没有外部 spike，但 mapped-neuron access 与内联 bias processing 仍产生 `635699200 ps` 的真实硬件活动，不会人为占用 1 秒。
+结果中的 `hardware_latency` 是目标硬件时间轴上的模拟时延；`host_latency` 是当前主机执行模拟器的 wall-clock 耗时。VGG 输入的逻辑 timestep 从 1 到 256，CSV 中 `generated_time/current_time` 全部为 0；每步先处理上一 timestep buffer，再排空本步 Data/NoC/accumulation。sample 000 的 timestep 1 没有外部 spike；满载 physical Core 的 soma processing 加同步 barrier 为 `11,732,800 ps`，不会人为占用 1 秒。
 
 当前同步语义会先聚合同一 timestep 内针对同一 neuron 的所有 synaptic input，下一步只做一次 state update 和至多一次 firing。固定运行 256 timestep 时，结果表示 timestep 256 neuron phase 后的状态；该步 Data 写入的 buffer 将留给未来 timestep，不自动增加额外 flush step。`reference/` 中保留了 SANA-FE/Python 的已知结果用于比较。

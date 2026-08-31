@@ -4,6 +4,8 @@
 #include "soma/hw/core.hpp"
 #include "soma/hw/noc/router.hpp"
 #include "soma/hw/soma.hpp"
+#include "soma/hw/synapse.hpp"
+#include "soma/hw/tile.hpp"
 #include "soma/input_encoder.hpp"
 #include "soma/runtime/spatial_template.hpp"
 #include "soma/sim/spike_queue.hpp"
@@ -68,6 +70,8 @@ int main(int argc, char** argv) {
         require(hardware.core.soma_access_hw_latency == 6000 &&
                     hardware.core.soma_update_hw_latency == 3700,
                 "soma access and update latency schema");
+        require(hardware.noc.synchronization_hw_latency(70) == 1'800'000,
+                "timestep synchronization latency table");
         const auto mapping = soma::MappingConfig::load(root + "/compiler/mapping_output/mapping.yaml");
         mapping.validate(static_cast<std::uint32_t>(hardware.noc.router_count()));
         soma::RouterResourceTable routers(hardware);
@@ -76,6 +80,14 @@ int main(int argc, char** argv) {
         const auto b = routers.traverse(0, route);
         require(a.hops == 1, "one-hop static route");
         require(b.hw_congestion_latency > 0, "router output hardware latency contention");
+        soma::TileLayout tile_layout(hardware);
+        const auto physical_core = tile_layout.core_address(278);
+        require(physical_core.tile == 69 && physical_core.core_within_tile == 2 &&
+                    physical_core.router == 69,
+                "physical Core maps to its Tile/Router");
+        const auto physical_route = routers.traverse(0, 0, 69);
+        require(physical_route.hops == 69,
+                "physical Tile endpoints produce a multi-hop XY route");
 
         const auto input = soma::load_input_spikes_csv(root + "/input/input_spike.csv");
         require(input.last_timestep == 2, "input logical timestep range");
@@ -130,25 +142,75 @@ int main(int argc, char** argv) {
         direct_hardware.core.soma_access_hw_latency = 6;
         direct_hardware.core.soma_update_hw_latency = 4;
         direct_hardware.core.soma_fire_hw_latency = 7;
-        soma::Core direct_core(direct_mapping, direct_hardware, direct_weights);
+        soma::Core direct_core(direct_mapping, direct_hardware, direct_weights,
+                               soma::PhysicalCoreAddress{}, 0, 3);
         const auto accumulation = direct_core.receive(0, 1.0F, 1, 100);
-        require(accumulation.hw_finish_time == 105 &&
+        require(accumulation.hw_finish_time == 115 &&
+                    accumulation.synaptic_updates == 3 &&
+                    accumulation.hw_synapse_service_latency == 15 &&
                     direct_core.output_scores() == std::vector<float>({0.0F, 0.0F, 0.0F}),
-                "Data only performs synaptic accumulation");
+                "packet synapse latency scales with local physical-Core updates");
         const auto direct = direct_core.process_timestep(2, accumulation.hw_finish_time);
         require(direct.mapped_neurons == 3 && direct.updated_neurons == 3 &&
-                    direct.hw_finish_time == 149 && direct.hw_compute_latency == 44,
+                    direct.hw_finish_time == 159 && direct.hw_compute_latency == 44,
                 "neuron processing uses mapped access plus actual update latency");
         require(direct.firings.size() == 2 && direct.firings[0].fired.neuron == 0 &&
                     direct.firings[1].fired.neuron == 2 &&
-                    direct.firings[0].hw_finish_time == 122 &&
-                    direct.firings[1].hw_finish_time == 149,
+                    direct.firings[0].hw_finish_time == 132 &&
+                    direct.firings[1].hw_finish_time == 159,
                 "Core emits at most one ordered firing per neuron");
         const auto next = direct_core.process_timestep(3, direct.hw_finish_time);
         require(next.mapped_neurons == 3 && next.updated_neurons == 2 &&
                     next.firings.size() == 1 && next.firings[0].fired.neuron == 0 &&
-                    next.hw_finish_time == 182,
+                    next.hw_finish_time == 192,
                 "remaining membrane is processed in the following timestep");
+
+        soma::LayerMapping partitioned_mapping;
+        partitioned_mapping.id = "partitioned";
+        partitioned_mapping.op = soma::LayerOp::Conv2d;
+        partitioned_mapping.neurons = 2048;
+        partitioned_mapping.source_neurons = 1;
+        partitioned_mapping.input_channels = 1;
+        partitioned_mapping.output_channels = 2;
+        partitioned_mapping.physical_neuron_order = "channel_major";
+        soma::LayerWeights partitioned_weights;
+        partitioned_weights.op = soma::LayerOp::Conv2d;
+        partitioned_weights.spatial = spatial;
+        std::vector<std::uint32_t> partitions;
+        soma::SynapseEngine::for_each_destination_partition(
+            partitioned_weights, 0, partitioned_mapping, 1024,
+            [&](std::uint32_t partition) { partitions.push_back(partition); });
+        require(partitions == std::vector<std::uint32_t>({0, 1}),
+                "one source firing packetizes once per destination physical Core");
+        std::vector<float> first_partition_updates(2048, 0.0F);
+        std::vector<float> second_partition_updates(2048, 0.0F);
+        const auto first_partition_count = soma::SynapseEngine::apply_to_physical_range(
+            partitioned_weights, 0, 1.0F, partitioned_mapping, 0, 1024,
+            [&](std::uint64_t neuron, float value) { first_partition_updates[neuron] += value; });
+        const auto second_partition_count = soma::SynapseEngine::apply_to_physical_range(
+            partitioned_weights, 0, 1.0F, partitioned_mapping, 1024, 2048,
+            [&](std::uint64_t neuron, float value) { second_partition_updates[neuron] += value; });
+        require(first_partition_count == 1 && second_partition_count == 1 &&
+                    std::abs(first_partition_updates[0] - 2.0F) < 1e-6F &&
+                    std::abs(second_partition_updates[1] - 3.0F) < 1e-6F,
+                "channel-major packets apply only destination-Core-local synaptic updates");
+
+        soma::LayerMapping full_core_mapping;
+        full_core_mapping.id = "full_core";
+        full_core_mapping.op = soma::LayerOp::Linear;
+        full_core_mapping.neurons = 1024;
+        full_core_mapping.source_neurons = 1;
+        full_core_mapping.output_channels = 1;
+        full_core_mapping.threshold = 1.0F;
+        soma::LayerWeights full_core_weights;
+        full_core_weights.op = soma::LayerOp::Linear;
+        full_core_weights.bias = {0.5F};
+        soma::Core full_core(full_core_mapping, hardware, full_core_weights,
+                             soma::PhysicalCoreAddress{}, 0, 1024);
+        const auto no_traffic = full_core.process_timestep(1, 0);
+        require(no_traffic.hw_finish_time +
+                    hardware.noc.synchronization_hw_latency(70) == 11'732'800,
+                "1024-neuron no-traffic timestep includes soma and synchronization latency");
         std::cout << "focused tests passed\n";
         return 0;
     } catch (const std::exception& error) {

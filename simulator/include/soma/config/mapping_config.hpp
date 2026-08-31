@@ -26,6 +26,8 @@ struct LayerMapping {
     std::uint32_t output_h = 1;
     std::uint32_t output_w = 1;
     std::uint32_t output_channels = 1;
+    std::uint32_t aggregate_core_count = 0;
+    std::string physical_neuron_order = "logical";
     std::string weight_prefix;
     std::string next;
     float threshold = 1.0F;
@@ -34,10 +36,13 @@ struct LayerMapping {
     bool virtual_input = false;
     bool readout = false;
     bool channelwise = false;
+
+    std::uint64_t physical_neuron_index(std::uint64_t logical_neuron) const;
+    std::uint64_t logical_neuron_index(std::uint64_t physical_neuron) const;
 };
 
 struct StaticRoute {
-    // routers 包含起点和终点，runtime 不会从 CSV 或坐标重新推导路径。
+    // routers 包含 layer 起点和终点，用于校验/debug；physical packet 使用同样的 XY 语义。
     std::string from;
     std::string to;
     std::vector<std::uint32_t> routers;

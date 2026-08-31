@@ -1,6 +1,6 @@
 # SOMA-Sim MVP
 
-SOMA-Sim 是纯 C++17 的单线程、spike-oriented SNN architecture simulator。它用一个全局稳定优先队列逐枚处理 spike，使用 mapping 中的静态 route 和紧凑的 router output/link 可用时间表计算 NoC 拥塞，不展开 neuron-to-neuron connection，也不创建 per-neuron C++ 对象。
+SOMA-Sim 是纯 C++17 的单线程、spike-oriented SNN architecture simulator。它用一个全局稳定优先队列逐枚处理 destination-Core packet，根据 mapping 的 physical Core/Tile 放置生成确定性 XY route，并用紧凑的 router output/link 可用时间表计算 NoC 拥塞；连接和神经元状态仍保持紧凑表示，不展开 neuron-to-neuron connection，也不创建 per-neuron C++ 对象。
 
 ## 构建与最小样例
 
@@ -12,7 +12,7 @@ ctest --test-dir build --output-on-failure
 ./build/soma-sim
 ```
 
-结果写入 `output/summary.json`、`output/layer_metrics.csv` 和 `output/timestep_metrics.csv`。CSV 中的 `src_router/dst_router/route` 只用于 debug；模拟器始终从 `compiler/mapping_output/mapping.yaml` 取 route。
+结果写入 `output/summary.json`、`output/layer_metrics.csv` 和 `output/timestep_metrics.csv`。summary 额外报告 physical Core/Tile、packets、NoC hops、synaptic updates 和 soma/synapse/NoC/synchronization breakdown；输入 CSV 中的 `src_router/dst_router/route` 只用于 debug。
 
 时间统计统一使用以下术语：
 
@@ -38,11 +38,11 @@ ctest --test-dir build --output-on-failure
 ## 输入约定
 
 - `hardware.yaml` 的 `hardware_latency` 支持 `ps/ns/us/ms/s`，加载时一次性转换成整数 ps。
-- `mapping.yaml` 给出 layer/partition 到 PE/Core/Router 的映射和完整静态 router 序列。
+- `mapping.yaml` 给出 layer 的起始 PE/Core、physical neuron order 和分区数；每个 packet 的静态 XY route 由 source/destination physical Core 所属 Tile 决定。
 - `weights.npz` 使用无 pickle 的 NumPy 数组。Conv 权重为 `[Cin,Kh,Kw,Cout]`，Linear 为 `[Cin,Cout]`，并带 `plan_pattern_id`、`plan_dst_base`、`pattern_ptr`、`pattern_dst_offset`、`pattern_weight_offset`。
-- neuron id 使用 spatial-major：`(y * W + x) * C + channel`。
+- 逻辑 neuron id 使用 spatial-major：`(y * W + x) * C + channel`；mapping 可用 `physical_neuron_order: channel_major` 指定 SANA-FE 风格的物理连续分区顺序。
 - `hardware.yaml` 的 `architecture.execution_mode` 控制执行语义；当前 Loihi-style 配置使用 `timestep_synchronization`。
-- 同步模式按“neuron processing → Data/NoC/synaptic accumulation → barrier”执行；Data 只写下一 timestep buffer，global queue 中只有真实 Data spike。
+- 同步模式按“neuron processing → Data/NoC/synaptic accumulation → barrier”执行；一个 firing 按 destination physical Core 拆成 packet，Data 只写下一 timestep buffer，global queue 中只有真实 Data packet。
 - soma timing 分为每个 mapped neuron 的 `soma_access`，以及仅对实际 state update 收取的 `soma_update`。
 - `input_spike.csv` 的逻辑 `timestep` 从 1 开始；同步模式下 `generated_time/current_time` 均写 0，实际硬件时间由 simulator 在逐 timestep 注入时生成。
 

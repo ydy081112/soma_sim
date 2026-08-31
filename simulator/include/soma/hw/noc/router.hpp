@@ -25,6 +25,8 @@ class RouterResourceTable {
 public:
     explicit RouterResourceTable(const HardwareConfig& hardware);
     NocTiming traverse(SimTime hw_arrival_time, const StaticRoute& route);
+    NocTiming traverse(SimTime hw_arrival_time, std::uint32_t source_router,
+                       std::uint32_t destination_router);
     const std::vector<SimTime>& hw_output_free_times() const {
         return hw_output_free_time_;
     }
@@ -36,6 +38,8 @@ private:
     std::vector<SimTime> hw_link_free_time_;
 
     std::size_t resource_index(std::uint32_t router, Port port) const;
+    void traverse_hop(NocTiming& result, std::uint32_t source, std::uint32_t destination);
+    void traverse_local(NocTiming& result, std::uint32_t destination);
 };
 
 }  // namespace soma

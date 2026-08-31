@@ -103,6 +103,14 @@ HardwareConfig HardwareConfig::load(const std::string& path) {
     config.noc.send_data = yaml::get_bool(send, "data", true);
     config.noc.receive_ack = yaml::get_bool(receive, "ack", false);
     config.noc.receive_credit = yaml::get_bool(receive, "credit", false);
+    const auto& synchronization = optional_map(noc, "synchronization");
+    for (const auto& [key, value] : synchronization.items()) {
+        constexpr const char prefix[] = "hardware_latency_";
+        if (key.rfind(prefix, 0) != 0) continue;
+        const auto tiles = static_cast<std::uint32_t>(std::stoul(key.substr(sizeof(prefix) - 1)));
+        if (tiles == 0) throw std::runtime_error("synchronization tile 数必须为正");
+        config.noc.timestep_sync_hw_latency[tiles] = parse_time_ps(value.as_string());
+    }
 
     const auto& core = architecture.at("core");
     config.core.pe_count = static_cast<std::uint32_t>(yaml::get_u64(core, "pe_count", 1));
@@ -163,6 +171,17 @@ void HardwareConfig::validate() const {
         throw std::runtime_error("PE/Core 容量必须为正");
     }
     if (core.default_threshold <= 0.0F) throw std::runtime_error("默认 threshold 必须为正");
+    if (timestep_synchronization() && noc.timestep_sync_hw_latency.empty()) {
+        throw std::runtime_error("timestep synchronization 缺少 hardware latency table");
+    }
+}
+
+SimTime HardwareConfig::Noc::synchronization_hw_latency(std::size_t mapped_tiles) const {
+    if (timestep_sync_hw_latency.empty()) return 0;
+    auto it = timestep_sync_hw_latency.upper_bound(static_cast<std::uint32_t>(mapped_tiles));
+    if (it == timestep_sync_hw_latency.begin()) return it->second;
+    --it;
+    return it->second;
 }
 
 }  // namespace soma

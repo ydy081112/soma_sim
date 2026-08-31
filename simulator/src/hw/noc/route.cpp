@@ -6,15 +6,15 @@
 namespace soma {
 // 用来找源router的输出口
 Port RouteGeometry::output_port(std::uint32_t source, std::uint32_t destination) const {
-    // Router id 使用 row-major 编码；这里只接受 Manhattan 相邻的一跳。
-    const auto sr = row(source);
-    const auto sc = col(source);
-    const auto dr = row(destination);
-    const auto dc = col(destination);
-    if (sr == dr && sc + 1 == dc) return Port::East;
-    if (sr == dr && dc + 1 == sc) return Port::West;
-    if (sc == dc && sr + 1 == dr) return Port::South;
-    if (sc == dc && dr + 1 == sr) return Port::North;
+    // 这里只接受 Manhattan 相邻的一跳；y 增大方向沿用参考实现命名为 North。
+    const auto sx = x(source);
+    const auto sy = y(source);
+    const auto dx = x(destination);
+    const auto dy = y(destination);
+    if (sy == dy && sx + 1 == dx) return Port::East;
+    if (sy == dy && dx + 1 == sx) return Port::West;
+    if (sx == dx && sy + 1 == dy) return Port::North;
+    if (sx == dx && dy + 1 == sy) return Port::South;
     throw std::runtime_error("static route 包含非相邻 router");
 }
 

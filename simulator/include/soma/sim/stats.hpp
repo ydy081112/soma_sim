@@ -15,6 +15,8 @@ namespace soma {
 struct LayerStats {
     std::uint64_t processed_spikes = 0;
     std::uint64_t emitted_spikes = 0;
+    std::uint64_t packets = 0;
+    std::uint64_t noc_hops = 0;
     std::uint64_t synaptic_updates = 0;
     double host_latency_s = 0.0;
 };
@@ -22,18 +24,29 @@ struct LayerStats {
 struct TimestepStats {
     std::uint64_t processed_spikes = 0;
     std::uint64_t emitted_spikes = 0;
+    std::uint64_t packets = 0;
+    std::uint64_t noc_hops = 0;
     std::uint64_t synaptic_updates = 0;
     double host_latency_s = 0.0;
+    SimTime hw_start_time = 0;
     SimTime hw_end_time = 0;
+    SimTime soma_service_hw_latency = 0;
+    SimTime synapse_service_hw_latency = 0;
+    SimTime noc_traversal_hw_latency = 0;
+    SimTime noc_congestion_hw_latency = 0;
+    SimTime synchronization_hw_latency = 0;
 };
 
 struct BreakdownStats {
     // 这些是所有事件的硬件 latency 累加，不等于关键路径的 hw_end_time。
     SimTime pe_inject_hw_latency = 0;
     SimTime pe_compute_hw_latency = 0;
+    SimTime soma_service_hw_latency = 0;
+    SimTime synapse_service_hw_latency = 0;
     SimTime noc_traversal_hw_latency = 0;
     SimTime router_congestion_hw_latency = 0;
     SimTime link_busy_hw_latency = 0;
+    SimTime synchronization_hw_latency = 0;
 };
 
 struct EnergyStats {
@@ -51,15 +64,22 @@ public:
     // host latency 衡量模拟器运行性能，hardware latency 衡量被模拟架构性能。
     Statistics(const MappingConfig& mapping, const HardwareConfig& hardware);
 
-    void record_data(std::size_t layer, std::uint32_t timestep, std::uint64_t updates,
-                     SimTime hw_current_time);
+    void set_physical_topology(std::uint64_t physical_cores, std::uint64_t mapped_tiles);
+    void begin_timestep(std::uint32_t timestep, SimTime hw_start_time);
+    void complete_timestep(std::uint32_t timestep, SimTime hw_end_time,
+                           SimTime synchronization_hw_latency);
+    void record_packet(std::size_t layer, std::uint32_t timestep, std::uint64_t updates,
+                       const NocTiming& noc, SimTime hw_current_time);
     void record_emit(std::size_t layer, std::uint32_t timestep, SimTime hw_current_time);
     void record_neuron_processing(std::size_t layer, std::uint32_t timestep,
                                   SimTime hw_current_time);
     void record_host_latency(std::size_t layer, std::uint32_t timestep, double host_latency_s);
-    void add_inject_hw_latency(SimTime hw_latency);
-    void add_noc_hw_latency(const NocTiming& timing);
-    void add_compute_hw_latency(SimTime hw_latency);
+    void add_inject_hw_latency(std::uint32_t timestep, SimTime hw_latency);
+    void add_noc_hw_latency(std::uint32_t timestep, const NocTiming& timing);
+    void add_synapse_hw_latency(std::uint32_t timestep, SimTime service_hw_latency,
+                                SimTime total_hw_latency);
+    void add_soma_hw_latency(std::uint32_t timestep, SimTime service_hw_latency,
+                             SimTime total_hw_latency);
     void add_data_energy(const NocTiming& noc, std::uint64_t updates);
     void add_neuron_energy(std::uint64_t updated_neurons);
     void add_fire_energy();
@@ -82,6 +102,11 @@ private:
     SimTime hw_latency_ = 0;
     std::uint64_t processed_spikes_ = 0;
     std::uint64_t emitted_spikes_ = 0;
+    std::uint64_t packets_ = 0;
+    std::uint64_t noc_hops_ = 0;
+    std::uint64_t synaptic_updates_ = 0;
+    std::uint64_t physical_core_count_ = 0;
+    std::uint64_t mapped_tile_count_ = 0;
     double host_latency_s_ = 0.0;
     bool stopped_early_ = false;
 

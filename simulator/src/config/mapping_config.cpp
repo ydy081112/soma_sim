@@ -33,7 +33,7 @@ MappingConfig MappingConfig::load(const std::string& path) {
     const auto& layers = mapping.at("layers");
     if (!layers.is_sequence()) throw std::runtime_error("mapping.layers 必须是 sequence");
     // 提取yaml
-    // YAML 中每个条目对应一个 layer partition；aggregated 是大层的快速估计模式。
+    // YAML 中每个条目描述一层；大层由起始 Core 和连续 physical partitions 紧凑表示。
     for (const auto& node : layers.elements()) {
         LayerMapping layer;
         layer.index = config.layers.size();
@@ -51,6 +51,8 @@ MappingConfig MappingConfig::load(const std::string& path) {
         layer.output_h = u32(node, "output_h", 1);
         layer.output_w = u32(node, "output_w", 1);
         layer.output_channels = u32(node, "output_channels", static_cast<std::uint32_t>(layer.neurons));
+        layer.aggregate_core_count = u32(node, "aggregate_core_count", 0);
+        layer.physical_neuron_order = yaml::get_string(node, "physical_neuron_order", "logical");
         layer.weight_prefix = yaml::get_string(node, "weight_prefix", layer.id);
         layer.next = yaml::get_string(node, "next", "");
         layer.threshold = static_cast<float>(yaml::get_double(node, "threshold", 1.0));
@@ -62,7 +64,7 @@ MappingConfig MappingConfig::load(const std::string& path) {
         config.layers.push_back(std::move(layer));
     }
 
-    // Route 保存完整 router 序列，CSV 中的 route/debug 字段不会进入这里。
+    // Route 保存 layer 级 router 序列供启动校验/debug，CSV route 字段不进入 runtime。
     const auto& routes = mapping.at("routes");
     if (!routes.is_sequence()) throw std::runtime_error("mapping.routes 必须是 sequence");
     for (const auto& node : routes.elements()) {
@@ -95,13 +97,21 @@ void MappingConfig::rebuild_indices() {
 }
 void MappingConfig::validate(std::uint32_t router_count) const {
     // 合法性检查
-    // 同时检查 layer 引用和静态 route 端点，保证 mapping 是路由唯一真值来源。
+    // 同时检查 layer 引用和 layer 级静态 route 端点。
     if (layers.empty()) throw std::runtime_error("mapping 至少需要一个 layer");
     for (const auto& layer : layers) {
         if (layer.neurons == 0) throw std::runtime_error(layer.id + ": neurons 必须为正");
         if (layer.router >= router_count) throw std::runtime_error(layer.id + ": router 越界");
         if (layer.op != LayerOp::Input && layer.source_neurons == 0) {
             throw std::runtime_error(layer.id + ": source_neurons 必须为正");
+        }
+        if (layer.physical_neuron_order != "logical" &&
+            layer.physical_neuron_order != "channel_major") {
+            throw std::runtime_error(layer.id + ": 不支持的 physical_neuron_order");
+        }
+        if (layer.physical_neuron_order == "channel_major" &&
+            (layer.output_channels == 0 || layer.neurons % layer.output_channels != 0)) {
+            throw std::runtime_error(layer.id + ": channel_major neuron shape 不合法");
         }
         if (!layer.next.empty()) {
             (void)this->layer(layer.next);
@@ -119,6 +129,24 @@ void MappingConfig::validate(std::uint32_t router_count) const {
             if (router >= router_count) throw std::runtime_error("static route router 越界");
         }
     }
+}
+
+std::uint64_t LayerMapping::physical_neuron_index(std::uint64_t logical_neuron) const {
+    if (logical_neuron >= neurons) throw std::runtime_error(id + ": logical neuron 越界");
+    if (physical_neuron_order == "logical") return logical_neuron;
+    const auto spatial_neurons = neurons / output_channels;
+    const auto spatial = logical_neuron / output_channels;
+    const auto channel = logical_neuron % output_channels;
+    return channel * spatial_neurons + spatial;
+}
+
+std::uint64_t LayerMapping::logical_neuron_index(std::uint64_t physical_neuron) const {
+    if (physical_neuron >= neurons) throw std::runtime_error(id + ": physical neuron 越界");
+    if (physical_neuron_order == "logical") return physical_neuron;
+    const auto spatial_neurons = neurons / output_channels;
+    const auto channel = physical_neuron / spatial_neurons;
+    const auto spatial = physical_neuron % spatial_neurons;
+    return spatial * output_channels + channel;
 }
 
 const LayerMapping& MappingConfig::layer(const std::string& id) const {
