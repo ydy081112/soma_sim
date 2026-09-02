@@ -15,6 +15,13 @@ LayerOp parse_op(const std::string& value) {
     throw std::runtime_error("不支持的 layer op: " + value);
 }
 
+ConnectionType parse_connection_type(const std::string& value) {
+    if (value == "spatial") return ConnectionType::Spatial;
+    if (value == "dense") return ConnectionType::Dense;
+    if (value == "identity") return ConnectionType::Identity;
+    throw std::runtime_error("不支持的 connection type: " + value);
+}
+
 std::uint32_t u32(const yaml::Node& node, const std::string& key, std::uint32_t fallback) {
     return static_cast<std::uint32_t>(yaml::get_u64(node, key, fallback));
 }
@@ -54,14 +61,33 @@ MappingConfig MappingConfig::load(const std::string& path) {
         layer.aggregate_core_count = u32(node, "aggregate_core_count", 0);
         layer.physical_neuron_order = yaml::get_string(node, "physical_neuron_order", "logical");
         layer.weight_prefix = yaml::get_string(node, "weight_prefix", layer.id);
-        layer.next = yaml::get_string(node, "next", "");
         layer.threshold = static_cast<float>(yaml::get_double(node, "threshold", 1.0));
         layer.leak = static_cast<float>(yaml::get_double(node, "leak", 1.0));
         layer.reset = yaml::get_string(node, "reset", "soft");
+        layer.membrane_quantization_step = static_cast<float>(
+            yaml::get_double(node, "membrane_quantization_step", 0.0));
+        layer.threshold_comparison = yaml::get_string(
+            node, "threshold_comparison", "greater_equal");
         layer.virtual_input = yaml::get_bool(node, "virtual_input", false);
         layer.readout = yaml::get_bool(node, "readout", false);
         layer.channelwise = yaml::get_bool(node, "channelwise", false);
         config.layers.push_back(std::move(layer));
+    }
+
+    const auto& connections = mapping.at("connections");
+    if (!connections.is_sequence()) throw std::runtime_error("mapping.connections 必须是 sequence");
+    for (const auto& node : connections.elements()) {
+        ConnectionMapping connection;
+        connection.index = config.connections.size();
+        connection.from = node.at("from").as_string();
+        connection.to = node.at("to").as_string();
+        connection.type = parse_connection_type(node.at("type").as_string());
+        connection.hardware_type = parse_connection_type(
+            yaml::get_string(node, "hardware_type", to_string(connection.type)));
+        connection.weight_prefix = node.at("weight_prefix").as_string();
+        connection.delay = u32(node, "delay", 0);
+        connection.channelwise = yaml::get_bool(node, "channelwise", false);
+        config.connections.push_back(std::move(connection));
     }
 
     // Route 保存 layer 级 router 序列供启动校验/debug，CSV route 字段不进入 runtime。
@@ -84,10 +110,14 @@ void MappingConfig::rebuild_indices() {
     // 热路径只做哈希查询，避免每枚 spike 线性搜索 layer 或 route。
     layer_index_.clear();
     route_index_.clear();
+    outgoing_connections_.assign(layers.size(), {});
     for (std::size_t i = 0; i < layers.size(); ++i) {
         if (!layer_index_.emplace(layers[i].id, i).second) {
             throw std::runtime_error("重复 layer id: " + layers[i].id);
         }
+    }
+    for (const auto& connection : connections) {
+        outgoing_connections_.at(index_of(connection.from)).push_back(connection.index);
     }
     for (std::size_t i = 0; i < routes.size(); ++i) {
         if (!route_index_.emplace(route_key(routes[i].from, routes[i].to), i).second) {
@@ -113,10 +143,19 @@ void MappingConfig::validate(std::uint32_t router_count) const {
             (layer.output_channels == 0 || layer.neurons % layer.output_channels != 0)) {
             throw std::runtime_error(layer.id + ": channel_major neuron shape 不合法");
         }
-        if (!layer.next.empty()) {
-            (void)this->layer(layer.next);
-            (void)this->route(layer.id, layer.next);
-        }
+        if (layer.membrane_quantization_step < 0.0F)
+            throw std::runtime_error(layer.id + ": membrane_quantization_step 不得为负");
+        if (layer.threshold_comparison != "greater" &&
+            layer.threshold_comparison != "greater_equal")
+            throw std::runtime_error(layer.id + ": threshold_comparison 仅支持 greater/greater_equal");
+    }
+    for (const auto& connection : connections) {
+        const auto& from = layer(connection.from);
+        const auto& to = layer(connection.to);
+        if (to.op == LayerOp::Input) throw std::runtime_error("connection 不能指向 input layer");
+        if (connection.type == ConnectionType::Identity && from.neurons != to.neurons)
+            throw std::runtime_error("identity connection 两端 neuron 数必须相同");
+        (void)route(connection.from, connection.to);
     }
     for (const auto& route : routes) {
         const auto& from = layer(route.from);
@@ -131,6 +170,10 @@ void MappingConfig::validate(std::uint32_t router_count) const {
     }
 }
 
+const std::vector<std::size_t>& MappingConfig::outgoing(std::size_t layer) const {
+    return outgoing_connections_.at(layer);
+}
+
 std::uint64_t LayerMapping::physical_neuron_index(std::uint64_t logical_neuron) const {
     if (logical_neuron >= neurons) throw std::runtime_error(id + ": logical neuron 越界");
     if (physical_neuron_order == "logical") return logical_neuron;
@@ -138,6 +181,15 @@ std::uint64_t LayerMapping::physical_neuron_index(std::uint64_t logical_neuron) 
     const auto spatial = logical_neuron / output_channels;
     const auto channel = logical_neuron % output_channels;
     return channel * spatial_neurons + spatial;
+}
+
+std::string to_string(ConnectionType type) {
+    switch (type) {
+        case ConnectionType::Spatial: return "spatial";
+        case ConnectionType::Dense: return "dense";
+        case ConnectionType::Identity: return "identity";
+    }
+    return "unknown";
 }
 
 std::uint64_t LayerMapping::logical_neuron_index(std::uint64_t physical_neuron) const {

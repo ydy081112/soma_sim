@@ -21,7 +21,9 @@ struct SomaNeuronResult {
 // Voltage/threshold 分离为连续 SoA；没有 per-neuron object。
 class SomaState {
 public:
-    SomaState(std::size_t neurons, float threshold, float leak, std::string reset, bool readout);
+    SomaState(std::size_t neurons, float threshold, float leak, std::string reset, bool readout,
+              float membrane_quantization_step = 0.0F,
+              std::string threshold_comparison = "greater_equal");
 
     SomaNeuronResult process_neuron(std::uint64_t neuron, float synaptic_input,
                                     bool has_pending_input, float bias);
@@ -33,6 +35,8 @@ private:
     float leak_ = 1.0F;
     std::string reset_;
     bool readout_ = false;
+    float membrane_quantization_step_ = 0.0F;
+    std::string threshold_comparison_;
 };
 
 }  // namespace soma

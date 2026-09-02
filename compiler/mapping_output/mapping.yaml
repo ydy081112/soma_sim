@@ -16,7 +16,6 @@ mapping:
       output_h: 2
       output_w: 2
       output_channels: 1
-      next: conv0
       virtual_input: true
     - id: conv0
       partition: 0
@@ -36,7 +35,6 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: readout
     - id: readout
       partition: 0
       op: linear
@@ -49,6 +47,17 @@ mapping:
       output_channels: 2
       weight_prefix: readout
       readout: true
+  connections:
+    - from: input
+      to: conv0
+      type: spatial
+      weight_prefix: conv0
+      delay: 0
+    - from: conv0
+      to: readout
+      type: dense
+      weight_prefix: readout
+      delay: 0
   routes:
     - from: input
       to: conv0
@@ -56,4 +65,3 @@ mapping:
     - from: conv0
       to: readout
       routers: [1, 257]
-

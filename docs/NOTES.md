@@ -16,6 +16,55 @@
 
 ## [已完成]
 
+> 以下至“正式合入 YAML 驱动的 Destination-router / per-Core FIFO”之前的 ResNet18 记录，均同步自服务器 `/home/dingyang_yu/comparison/soma_sim` 的增量开发工作。
+
+### 2026-09-02：VGG16 64/256 timestep latency / energy 单栏四联图（本地工作）
+
+- 新增 `others/vgg64_256_latency_energy_20260902/`：横排四个低高度 panel，依次比较 64 timestep hardware latency、64 timestep dynamic energy、256 timestep hardware latency、256 timestep dynamic energy；画布为 `5.20 x 1.72 in`，每图独立纵轴，柱顶标注绝对值，标题标注 SOMA 相对 SANA-FE 的总量误差。
+- 图形风格沿用 `hardware_energy_breakdown_20260902`：FreeSans/DejaVu Sans、墨绿 `#3C9174`、深红 `#B23336`、黑色柱边界、无上/右边框与浅灰水平网格。64/256-step 结果分别为 latency `130.074773/128.676555 ms`、`638.970425/566.443578 ms`，energy `38.380161/37.425412 mJ`、`163.709593/159.962050 mJ`（SOMA/SANA）。
+- 数据 CSV、可复现脚本及 PDF/600-DPI PNG 均自包含。使用 `sim_snn` 环境的 Matplotlib 成功重绘，脚本通过 `py_compile`，PNG 已目视确认无文字重叠、裁切或遮挡；未重跑 benchmark、未使用 GPU，也未生成缓存。
+
+### 2026-09-02：正式 route-density 补跑 ResNet18 B7--B9
+
+- 使用相同 T=16 boundary assets 补完 B7、B8、B9；SOMA/SANA hardware latency 分别为 `13.554538/13.374200 ms (+1.348%)`、`16.201029/16.033505 ms (+1.045%)`、`74.910144/74.774942 ms (+0.181%)`。
+- B7/B8 output firing 分别精确为 `5,712/19,584`；B9 prediction 均为 `340`。B9 readout potential 最大绝对差为 `0.0312483`（两个 1/64 量化步），所以未将其表述为逐值 bit-exact。
+- Energy 均只存在 CSV/JSON 浮点舍入误差；正式 host 为 B7/B8/B9 `3.776/3.874/0.719 s`。全量对比已更新至 `output/resnet18_route_density_t16/comparison.csv`（B0 未在本轮 route-density 目录重跑，B1/B1.1 无 SANA-FE 有效 ground truth）。
+
+### 2026-09-02：增量合入可配置 source-Core FIFO / route-density 并完成回归
+
+- 保留所有既有 Router overload 和 destination-flow/resource-table 路径；新增 YAML `noc.congestion_model: route_density` 与 `core.source_packet_fifo: true` 才启用新机制。`arch/hardware.yaml` 明确保持 `destination_flow/false`，`arch/resnet18_sanafe.yaml` 明确使用 `route_density/true`，没有按网络名或芯片名分支。
+- 新路径仍使用原 global SpikeQueue、一次只 pop 一个 spike packet、原 NoC/Core accumulation 与 Spatial Pattern 热路径；每个 source physical Core 仅以一个队首 packet 进入 global queue，紧凑 route-density/in-flight 状态把 capacity blocking 反馈给该 Core 的下一 packet。未修改 hardware latency 或 energy 参数。
+- 正式 Release 构建重跑 B1.2--B6 T=16，SOMA/SANA hardware latency 误差分别为 `+1.536/+0.791/+0.540/+0.555/+1.550/+0.791%`；六块 output firing 全部精确一致，energy 仅有 CSV/JSON 浮点舍入误差。正式 host 分别为 `39.241/68.845/37.557/19.871/8.535/6.743 s`。结果位于 `output/resnet18_route_density_t16/`。
+- 完整 VGG16 256-step 使用旧配置路径完成：prediction/label=`3/3`、177,386,828 packets、5,385,396,144 updates、hardware `638,970,424,703 ps`、host `254.213211646 s`。相对 `output/vgg16_connections_regression_256/`，排除 wall-clock host 字段后 summary 完全一致；scores/energy、逐 timestep workload/hardware timing、逐 layer workload 均逐字段完全一致。结果位于 `output/vgg16_incremental_regression_256/`。
+- 验证：`cmake --build build -j8`、`ctest --test-dir build --output-on-failure`（1/1）、`git diff --check` 均通过；单测覆盖 YAML 模式选择以及 route density 超过配置 capacity 后产生 source blocking。host latency 是真实 wall-clock，历史同机完整 VGG 记录为 `228.997--330.478 s`，本次处于该波动范围，不能承诺逐次相等。
+
+### 2026-09-02：ResNet18 B1.2--B6 hardware-latency 临时对齐实验
+
+- 按用户要求只在 `/tmp/soma_resnet_timing.snNQU4` 修改/构建，正式仓库 simulator 源码未改；所有候选保持单线程、逐 spike、原 global SpikeQueue、一次 pop 处理一个 packet，未修改任何 latency/energy 参数，也未运行 GPU。
+- 根因是正式实现将同一 timestep 的大量 fan-out packet 先全部放入 global heap，并在出队后才确定 axon-out departure；不同 source Core 无法按真实发送时刻交错。与此同时，逐 hop 严格 link serialization 与 destination-flow service feedback 对同一拥塞重复施加，导致 B1.2--B5 大幅高估；单独移除任一项又会明显低估。
+- 最优临时候选为每 source physical Core 一个紧凑待发送 FIFO，global queue 只保留每 Core 队头。队头仍作为普通 spike event 被 global queue 处理；完成后将 path-capacity blocking 反馈到同 Core 下一 packet，再把下一队头放回同一个 global queue。NoC 使用 SANA detailed 的 XY route-density、in-flight mean processing delay 与 source blocking，Core accumulation/functional path 不变，无第二套 scheduler。
+- T=16 总 hardware latency SOMA/SANA 与误差：B1.2 `21.644293/21.316820 ms (+1.536%)`、B2 `39.149016/38.841926 ms (+0.791%)`、B3 `44.313970/44.076136 ms (+0.540%)`、B4 `31.688740/31.513767 ms (+0.555%)`、B5 `15.729999/15.489905 ms (+1.550%)`、B6 `20.849535/20.685938 ms (+0.791%)`。逐 timestep MAPE 分别为 `1.603/1.292/1.044/0.684/1.894/0.848%`，最大绝对误差均 `<8.37%`。
+- Host 同样总体改善：B1.2 `41.27 vs 46.27 s`、B2 `69.68 vs 90.72 s`、B3 `38.57 vs 48.50 s`、B4 `19.24 vs 21.67 s`、B5 `8.98 vs 7.93 s`、B6 `7.17 vs 7.29 s`（候选/正式）；B5 小幅变慢。B2 peak RSS 从约 `807 MiB` 降至 `706 MiB`。六块 output firing 保持与 reference 相同。
+- 临时 Release 构建与 CTest 1/1 通过。该结果尚未合入正式仓库，也尚未跑 VGG16 regression；正式化前需要把 source FIFO/route-density 作为 YAML 能力配置、补充 queue/blocking 单测，并验证 VGG 输出及 host latency 不回退。
+
+### 2026-09-02：SANA-FE 已完成范围的 ResNet18 T=16 block 对齐运行
+
+- 只运行 SANA-FE 有有效 CSV ground truth 的 10 个独立单元 B0、B1.2、B2--B9；使用相同 boundary spike 的前 16 timestep、相同 float32 参数传输、CHW physical Core 顺序和 sequential contiguous placement。B1/B1.1 因 SANA-FE 内存 guard 未完成而不补跑，且未把独立 block 求和冒充 full-network 指标。
+- 新增可复现的 block 资产生成与比较工具、逐块 mappings，以及显式区分 Conv=`24.0`、Dense=`35.5`、Sparse/identity=`33.6 pJ/update` 的 `arch/resnet18_sanafe.yaml`；原 VGG hardware YAML 未加入 Dense 覆盖，因此其配置语义、输出与 host 热路径不变。生成资产受 ignore 管理，结果位于 `output/resnet18_blocks_t16/`。
+- 功能结果：B1.2、B2--B8 的最终层总 firing 与 reference 完全一致；B2 的 conv1/output 也分别精确为 `555,674/363,918`。B0 为 `386,159` 对 `386,158`，只多 1 firing。B9 的 T=16 prediction 均为 `340`；SOMA 与 reference potential 最大绝对差 `0.0156262`，约一个 1/64 量化步，故不能宣称逐值 bit-exact。boundary scalar 的 `391` 是完整 128-step prediction，不是本次 T=16 reference。
+- Energy：10 个 block 最大绝对相对误差为 B0 的 `4.41e-7%`（对应多出的单 firing），其余均在 CSV/JSON 浮点舍入误差内；workload/energy 路径已对齐。Hardware latency 没有对齐：误差从 B6 的 `-30.60%` 到 B1.2 的 `+599.07%`，中位数 `+100.87%`，表明当前 destination FIFO/拥塞近似在大 block 上明显过强，不能用正确 workload 代替 timing correctness。
+- Host：SOMA 每块均更快，SANA/SOMA 观测 speedup 为 `2.00x--9.03x`、中位数 `5.02x`；最终同一 Release 构建下 10 块独立调用的 host time 合计 `266.67 s` 对 `1859.90 s`，该合计只用于 host 工作量概览，不是 full-network latency。
+- 验证：Release 增量构建通过，`ctest --test-dir build --output-on-failure` 1/1 通过，两个 Python 工具通过 `py_compile`，`git diff --check` 通过。未覆盖边界是逐 neuron/timestep spike trace 的 bit-exact 比较，以及没有 SANA-FE ground truth 的 full ResNet18。
+
+### 2026-09-02：显式 connection graph 与可配置 residual 语义
+
+- mapping 从 layer `next` 迁移为显式 `connections`，每条包含 `from/to/type/weight_prefix/delay`；runtime 按 source 预建 outgoing index，支持 fan-out，并让不同 connection 复用同一 destination Core/Soma state 完成 fan-in。
+- `spatial` 继续进入原 Spatial Pattern/source-major 热路径；`dense` 保持 source-major Dense；`identity` 使用独立 scalar/channel/neuron weight，直接定位同 id destination，不伪装成 Conv。三类 synapse latency/energy 均由 hardware YAML 配置，缺省回退保持旧配置兼容。
+- Core delayed accumulation ring 的深度由目标层所有 incoming connection 的 YAML 最大 delay 推导；delay=0/1 分别在下一/下下 timestep neuron phase 消费，不创建内部 event，也不改变 global SpikeQueue/NoC/Core packet accumulation 主结构。
+- layer YAML 新增可选 `membrane_quantization_step` 与 `threshold_comparison`；缺省 `0`/`greater_equal` 保持 VGG 旧语义，ResNet 可配置 `0.015625`/`greater`，并沿用配置的 soft reset。
+- 验证：Release 增量构建和 CTest 1/1 通过；新增显式 fan-out mapping、双 connection fan-in、identity、delay=1、1/64 truncation、strict threshold 测试。完整 VGG16 256-step 回归为 prediction/label=`3/3`、177,386,828 packets、5,385,396,144 updates、hardware `638,970,424,703 ps`，scores、workload、energy 与改前保存结果逐值相同；本次 host `228.997390446 s`，历史同机记录 `330.478495 s`，未见性能回退，但 wall-clock 不承诺逐次相等。
+- 未覆盖边界：尚未生成/运行完整 ResNet18 T=16 资产；本阶段只完成其所需的通用 runtime/config 表达能力。reference 原始大资产位于 ignored 的 `input/resnet18_source/`，没有混入 Git。
+
 ### 2026-09-02：正式合入 YAML 驱动的 Destination-router / per-Core FIFO
 
 - `HardwareConfig::Core` 新增并加载 `input_fifo`、`fifo_per_core`、`fifo_num_per_core`、`fifo_depth_per_core`；当前配置启用每 Core 1 个、深度 16 的 FIFO。数量、深度和 Core 数均参与紧凑资源表，不在 simulator 热路径写死。

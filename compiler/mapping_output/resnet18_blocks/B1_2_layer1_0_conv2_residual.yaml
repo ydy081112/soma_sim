@@ -1,0 +1,81 @@
+mapping:
+  model: resnet18_imagenet_B1_2_layer1_0_conv2_residual_t16
+  policy: sanafe_sequential_contiguous_cores
+  hardware: arch/resnet18_sanafe.yaml
+  layers:
+    - id: main_input
+      partition: virtual
+      op: input
+      pe: 0
+      core: 0
+      router: 0
+      neurons: 200704
+      input_h: 56
+      input_w: 56
+      input_channels: 64
+      output_h: 56
+      output_w: 56
+      output_channels: 64
+      aggregate_core_count: 196
+      physical_neuron_order: channel_major
+      weight_prefix: main_input
+      virtual_input: true
+    - id: skip_input
+      partition: virtual
+      op: input
+      pe: 49
+      core: 0
+      router: 49
+      neurons: 802816
+      input_h: 112
+      input_w: 112
+      input_channels: 64
+      output_h: 112
+      output_w: 112
+      output_channels: 64
+      aggregate_core_count: 784
+      physical_neuron_order: channel_major
+      weight_prefix: skip_input
+      virtual_input: true
+    - id: output
+      partition: contiguous_physical
+      op: conv2d
+      pe: 245
+      core: 0
+      router: 245
+      neurons: 200704
+      input_h: 56
+      input_w: 56
+      input_channels: 64
+      output_h: 56
+      output_w: 56
+      output_channels: 64
+      aggregate_core_count: 196
+      physical_neuron_order: channel_major
+      weight_prefix: output
+      source_neurons: 200704
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      membrane_quantization_step: 0.015625
+      threshold_comparison: greater
+  connections:
+    - from: main_input
+      to: output
+      type: spatial
+      weight_prefix: main
+      delay: 0
+    - from: skip_input
+      to: output
+      type: spatial
+      hardware_type: identity
+      weight_prefix: skip
+      delay: 1
+      channelwise: true
+  routes:
+    - from: main_input
+      to: output
+      routers: [0, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245]
+    - from: skip_input
+      to: output
+      routers: [49, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245]

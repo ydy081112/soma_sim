@@ -22,6 +22,9 @@ struct EnergyConfig {
     double sram_read_pj = 0.0;
     double sram_write_pj = 0.0;
     double synapse_pj = 0.0;
+    double spatial_synapse_pj = 0.0;
+    double dense_synapse_pj = 0.0;
+    double identity_synapse_pj = 0.0;
     double soma_update_pj = 0.0;
     double soma_fire_pj = 0.0;
 };
@@ -36,6 +39,8 @@ struct HardwareConfig {
     struct Noc {
         std::string topology = "mesh";
         std::string routing = "static";
+        // resource_table/destination_flow 保留既有时序；route_density 为可选拥塞模型。
+        std::string congestion_model = "destination_flow";
         std::uint32_t rows = 1;
         std::uint32_t cols = 1;
         std::uint32_t virtual_channels = 1;
@@ -81,6 +86,8 @@ struct HardwareConfig {
         std::uint32_t input_buffer_depth = 16;
         bool input_fifo = false;
         bool fifo_per_core = false;
+        // 启用后 global queue 中每个 source Core 只保留一个队首 packet。
+        bool source_packet_fifo = false;
         std::uint32_t fifo_num_per_core = 1;
         std::uint32_t fifo_depth_per_core = 1;
         std::uint64_t synapse_sram_bytes = 128 * 1024;
@@ -90,6 +97,7 @@ struct HardwareConfig {
         SimTime sram_write_hw_latency = 0;
         SimTime spatial_synapse_hw_latency = 0;
         SimTime dense_synapse_hw_latency = 0;
+        SimTime identity_synapse_hw_latency = 0;
         SimTime soma_access_hw_latency = 0;
         SimTime soma_update_hw_latency = 0;
         SimTime soma_fire_hw_latency = 0;

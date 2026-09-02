@@ -1,6 +1,6 @@
-# 参数取自 SANA-FE arch/loihi_large_vgg.yaml；名称只作 trace，不参与 C++ 微架构选择。
+# SANA-FE ResNet18 block reference；显式区分 Conv/Dense/Sparse synapse 能耗。
 architecture:
-  name: reference_large_mesh
+  name: reference_large_mesh_resnet18
   execution_mode: timestep_synchronization
   frequency_mhz: 1000
   technology: 14nm
@@ -10,14 +10,13 @@ architecture:
     rows: 128
     cols: 256
     routing: static
-    # 保持 VGG16 的既有 destination-flow 时序路径。
-    congestion_model: destination_flow
+    # 显式启用参考 detailed scheduler 对应的在线 route-density 回压。
+    congestion_model: route_density
     virtual_channels: 1
     input_buffer_depth: 16
     flit_width_bits: 64
     spike_per_flit: 1
     pipeline:
-      # 方向 hop hardware latency 已包含交换/链路传播，因此这里不重复计时。
       input_queue_hardware_latency: 0 ps
       route_compute_hardware_latency: 0 ps
       switch_allocate_hardware_latency: 0 ps
@@ -30,7 +29,6 @@ architecture:
         south: 6.5 ns
         west: 4.1 ns
       busy_hardware_latency: 4.1 ns
-      # req+ack 决定异步握手；代码不检查芯片名称。
       send:
         req: true
         data: true
@@ -48,10 +46,9 @@ architecture:
     cores_per_pe: 4
     max_neurons: 1024
     input_buffer_depth: 16
-    # 目的端输入采用每个 physical Core 独立的有限深度 FIFO。
     input_fifo: true
     fifo_per_core: true
-    source_packet_fifo: false
+    source_packet_fifo: true
     fifo_num_per_core: 1
     fifo_depth_per_core: 16
     synapse_sram_bytes: 131072
@@ -85,6 +82,8 @@ architecture:
     sram_read: 0.0
     sram_write: 0.0
     synapse: 24.0
+    synapse_spatial: 24.0
+    synapse_dense: 35.5
     synapse_identity: 33.6
     soma_update: 72.8
     soma_fire: 69.3

@@ -12,6 +12,7 @@
 #include "soma/sim/stats.hpp"
 
 #include <cstdint>
+#include <deque>
 #include <map>
 #include <memory>
 #include <string>
@@ -58,6 +59,9 @@ private:
     TileLayout tile_layout_;
     std::vector<LayerRuntime> layer_runtime_;
     std::vector<HardwareResource> axon_out_resources_;
+    std::vector<SimTime> source_blocking_offsets_;
+    std::vector<std::deque<Spike>> source_pending_packets_;
+    std::vector<std::uint8_t> source_packet_active_;
     Statistics stats_;
     std::map<std::uint32_t, std::vector<std::size_t>> input_by_timestep_;
     std::size_t mapped_tiles_ = 0;
@@ -68,6 +72,8 @@ private:
     void enqueue_packets(std::size_t source_layer, std::uint64_t source_neuron,
                          float value, std::uint32_t timestep, SimTime generated_time,
                          SimTime current_time, std::uint64_t spike_id = 0);
+    void stage_source_packet(Spike packet);
+    void release_next_source_packet(std::uint32_t source_core);
     void process_neurons(std::uint32_t timestep, SimTime hw_start_time);
     void push_firings(std::size_t layer, std::uint32_t timestep,
                       const std::vector<CoreFiringResult>& firings);

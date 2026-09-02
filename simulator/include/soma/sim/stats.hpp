@@ -74,13 +74,15 @@ public:
     void record_neuron_processing(std::size_t layer, std::uint32_t timestep,
                                   SimTime hw_current_time);
     void record_host_latency(std::size_t layer, std::uint32_t timestep, double host_latency_s);
+    void record_timestep_host_latency(std::uint32_t timestep, double host_latency_s);
     void add_inject_hw_latency(std::uint32_t timestep, SimTime hw_latency);
     void add_noc_hw_latency(std::uint32_t timestep, const NocTiming& timing);
     void add_synapse_hw_latency(std::uint32_t timestep, SimTime service_hw_latency,
                                 SimTime total_hw_latency);
     void add_soma_hw_latency(std::uint32_t timestep, SimTime service_hw_latency,
                              SimTime total_hw_latency);
-    void add_data_energy(const NocTiming& noc, std::uint64_t updates);
+    void add_data_energy(const NocTiming& noc, std::uint64_t updates,
+                         ConnectionType connection_type);
     void add_neuron_energy(std::uint64_t updated_neurons);
     void add_fire_energy();
     void set_host_latency(double host_latency_s) { host_latency_s_ = host_latency_s; }

@@ -26,6 +26,11 @@ Simulator::Simulator(SimulatorOptions options)
 
     layer_runtime_.resize(mapping_.layers.size());
     axon_out_resources_.resize(tile_layout_.total_cores());
+    if (hardware_.core.source_packet_fifo) {
+        source_blocking_offsets_.resize(tile_layout_.total_cores(), 0);
+        source_pending_packets_.resize(tile_layout_.total_cores());
+        source_packet_active_.resize(tile_layout_.total_cores(), 0);
+    }
     std::vector<int> physical_core_owner(tile_layout_.total_cores(), -1);
     std::set<std::uint32_t> mapped_tile_ids;
     std::uint64_t physical_core_count = 0;
@@ -52,13 +57,18 @@ Simulator::Simulator(SimulatorOptions options)
             runtime.addresses.push_back(address);
             mapped_tile_ids.insert(address.tile);
             if (layer.op != LayerOp::Input) {
+                std::uint32_t max_connection_delay = 0;
+                for (const auto& connection : mapping_.connections) {
+                    if (connection.to == layer.id)
+                        max_connection_delay = std::max(max_connection_delay, connection.delay);
+                }
                 const auto physical_begin = static_cast<std::uint64_t>(partition) *
                                             hardware_.core.max_neurons;
                 const auto neuron_count = std::min<std::uint64_t>(
                     hardware_.core.max_neurons, layer.neurons - physical_begin);
                 runtime.cores.push_back(std::make_unique<Core>(
                     layer, hardware_, weights_.at(layer.id), address,
-                    physical_begin, neuron_count));
+                    physical_begin, neuron_count, max_connection_delay));
             }
         }
         physical_core_count += partition_count;
@@ -98,19 +108,19 @@ void Simulator::process_neurons(std::uint32_t timestep, SimTime hw_start_time) {
     std::vector<std::pair<std::size_t, std::vector<CoreFiringResult>>> pending_firings;
     for (const auto& layer : mapping_.layers) {
         if (layer.op == LayerOp::Input) continue;
+        const auto layer_host_start = std::chrono::steady_clock::now();
         for (auto& core : layer_runtime_.at(layer.index).cores) {
-            const auto host_start = std::chrono::steady_clock::now();
             auto result = core->process_timestep(timestep, hw_start_time);
-            const auto host_end = std::chrono::steady_clock::now();
             stats_.add_soma_hw_latency(timestep, result.hw_soma_service_latency,
                                        result.hw_compute_latency);
             stats_.add_neuron_energy(result.updated_neurons);
             stats_.record_neuron_processing(layer.index, timestep, result.hw_finish_time);
             pending_firings.emplace_back(layer.index, std::move(result.firings));
-            stats_.record_host_latency(
-                layer.index, timestep,
-                std::chrono::duration<double>(host_end - host_start).count());
         }
+        const auto layer_host_end = std::chrono::steady_clock::now();
+        stats_.record_host_latency(
+            layer.index, timestep,
+            std::chrono::duration<double>(layer_host_end - layer_host_start).count());
     }
     for (const auto& [layer, firings] : pending_firings) {
         push_firings(layer, timestep, firings);
@@ -119,11 +129,10 @@ void Simulator::process_neurons(std::uint32_t timestep, SimTime hw_start_time) {
 
 void Simulator::push_firings(std::size_t layer_index, std::uint32_t timestep,
                              const std::vector<CoreFiringResult>& firings) {
-    const auto& layer = mapping_.layer(layer_index);
     for (const auto& firing : firings) {
         stats_.record_emit(layer_index, timestep, firing.hw_finish_time);
         stats_.add_fire_energy();
-        if (layer.next.empty()) continue;
+        if (mapping_.outgoing(layer_index).empty()) continue;
         enqueue_packets(layer_index, firing.fired.neuron, firing.fired.value, timestep,
                         firing.hw_finish_time, firing.hw_finish_time);
     }
@@ -141,27 +150,66 @@ void Simulator::enqueue_packets(std::size_t source_layer, std::uint64_t source_n
                                 float value, std::uint32_t timestep,
                                 SimTime generated_time, SimTime current_time,
                                 std::uint64_t spike_id) {
-    const auto& source = mapping_.layer(source_layer);
-    if (source.next.empty()) return;
-    const auto target_index = mapping_.index_of(source.next);
-    const auto& target = mapping_.layer(target_index);
     const auto source_address = source_core_address(source_layer, source_neuron);
-    SynapseEngine::for_each_destination_partition(
-        weights_.at(target.id), source_neuron, target, hardware_.core.max_neurons,
-        [&](std::uint32_t destination_partition) {
+    for (const auto connection_index : mapping_.outgoing(source_layer)) {
+        const auto& connection = mapping_.connections.at(connection_index);
+        const auto target_index = mapping_.index_of(connection.to);
+        const auto& target = mapping_.layer(target_index);
+        const auto& connection_weights = weights_.connection(connection_index);
+        SynapseEngine::for_each_destination_partition(
+            connection_weights, source_neuron, target, hardware_.core.max_neurons,
+            [&](std::uint32_t destination_partition) {
             Spike packet;
-            packet.generated_time = generated_time;
-            packet.current_time = current_time;
+            if (hardware_.core.source_packet_fifo) {
+                const auto injection = axon_out_resources_.at(source_address.global_core).reserve(
+                    current_time, hardware_.core.axon_out_hw_latency);
+                stats_.add_inject_hw_latency(
+                    timestep, injection.hw_finish_time - current_time);
+                packet.generated_time = injection.hw_finish_time;
+                packet.current_time = injection.hw_finish_time;
+                packet.unblocked_send_time = injection.hw_finish_time;
+            } else {
+                packet.generated_time = generated_time;
+                packet.current_time = current_time;
+            }
             packet.spike_id = spike_id;
             packet.timestep = timestep;
             packet.source_layer = source_layer;
             packet.source_neuron = source_neuron;
             packet.source_physical_core = source_address.global_core;
             packet.destination_layer = target_index;
+            packet.connection = connection_index;
             packet.destination_partition = destination_partition;
             packet.value = value;
-            queue_.push(std::move(packet));
+            if (hardware_.core.source_packet_fifo) stage_source_packet(std::move(packet));
+            else queue_.push(std::move(packet));
         });
+    }
+}
+
+void Simulator::stage_source_packet(Spike packet) {
+    const auto core = packet.source_physical_core;
+    if (source_packet_active_.at(core) == 0) {
+        packet.generated_time = packet.unblocked_send_time + source_blocking_offsets_.at(core);
+        packet.current_time = packet.generated_time;
+        source_packet_active_[core] = 1;
+        queue_.push(std::move(packet));
+    } else {
+        source_pending_packets_.at(core).push_back(std::move(packet));
+    }
+}
+
+void Simulator::release_next_source_packet(std::uint32_t source_core) {
+    auto& pending = source_pending_packets_.at(source_core);
+    if (pending.empty()) {
+        source_packet_active_[source_core] = 0;
+        return;
+    }
+    auto packet = std::move(pending.front());
+    pending.pop_front();
+    packet.generated_time = packet.unblocked_send_time + source_blocking_offsets_.at(source_core);
+    packet.current_time = packet.generated_time;
+    queue_.push(std::move(packet));
 }
 
 void Simulator::process_data(Spike& spike) {
@@ -171,23 +219,34 @@ void Simulator::process_data(Spike& spike) {
     const auto& destination = target_runtime.addresses.at(spike.destination_partition);
     const auto source = tile_layout_.core_address(spike.source_physical_core);
 
-    // spike 进入 NoC 前先占用其 source physical Core 的 axon-out 资源。
-    // 同一 Core 的 packet 在此串行，不同 Core 的 axon-out 资源互相独立。
-    const auto injection = axon_out_resources_.at(source.global_core).reserve(
-        spike.current_time, hardware_.core.axon_out_hw_latency);
-    stats_.add_inject_hw_latency(spike.timestep, injection.hw_finish_time - spike.current_time);
-    spike.current_time = injection.hw_finish_time;
+    if (!hardware_.core.source_packet_fifo) {
+        // 既有路径：packet 出队时占用 source Core 的 axon-out。
+        const auto injection = axon_out_resources_.at(source.global_core).reserve(
+            spike.current_time, hardware_.core.axon_out_hw_latency);
+        stats_.add_inject_hw_latency(
+            spike.timestep, injection.hw_finish_time - spike.current_time);
+        spike.current_time = injection.hw_finish_time;
+    }
 
     // noc
-    const auto noc = routers_.traverse(spike.current_time, source.router,
-                                       destination.router,
-                                       destination.core_within_tile);
+    const auto noc = hardware_.core.source_packet_fifo
+        ? routers_.traverse(spike.current_time, source.router,
+                            source.core_within_tile, destination.router,
+                            destination.core_within_tile)
+        : routers_.traverse(spike.current_time, source.router,
+                            destination.router, destination.core_within_tile);
+    if (hardware_.core.source_packet_fifo) {
+        source_blocking_offsets_.at(source.global_core) += noc.hw_source_blocking_latency;
+    }
     stats_.add_noc_hw_latency(spike.timestep, noc);
     spike.current_time = noc.hw_arrival_time;
     
     // core
     auto& core = *target_runtime.cores.at(spike.destination_partition);
-    const auto receive = core.receive(spike.source_neuron, spike.value, spike.timestep, spike.current_time);
+    const auto& connection = mapping_.connections.at(spike.connection);
+    const auto receive = core.receive(spike.source_neuron, spike.value, spike.timestep,
+                                      spike.current_time, &weights_.connection(spike.connection),
+                                      connection.delay);
     spike.current_time = receive.hw_finish_time;
     const auto receive_service = receive.hw_axon_in_service_latency +
                                  receive.hw_synapse_service_latency;
@@ -196,16 +255,20 @@ void Simulator::process_data(Spike& spike) {
 
     stats_.add_synapse_hw_latency(spike.timestep, receive.hw_synapse_service_latency,
                                   receive.hw_compute_latency);
-    stats_.add_data_energy(noc, receive.synaptic_updates);
+    stats_.add_data_energy(noc, receive.synaptic_updates, connection.hardware_type);
     stats_.record_packet(target_index, spike.timestep, receive.synaptic_updates,
                          noc, receive.hw_finish_time);
+    if (hardware_.core.source_packet_fifo) {
+        release_next_source_packet(source.global_core);
+    }
 }
 
 std::vector<float> Simulator::final_scores() const {
     // 优先选择显式 readout，否则使用 mapping 中最后一个无后继的计算层。
     for (std::size_t i = mapping_.layers.size(); i > 0; --i) {
         const auto& layer = mapping_.layers[i - 1];
-        if (layer.op != LayerOp::Input && (layer.readout || layer.next.empty())) {
+        if (layer.op != LayerOp::Input &&
+            (layer.readout || mapping_.outgoing(i - 1).empty())) {
             std::vector<float> scores(static_cast<std::size_t>(layer.neurons), 0.0F);
             for (const auto& core : layer_runtime_.at(i - 1).cores) {
                 const auto& local_scores = core->output_scores();
@@ -234,11 +297,19 @@ SimulationResult Simulator::run_timestep_synchronization() {
     bool completed = true;
     SimTime next_timestep_hw_start = 0;
     for (std::uint32_t timestep = 1; timestep <= input_.last_timestep; ++timestep) {
+        const auto timestep_host_start = std::chrono::steady_clock::now();
         if (options_.max_events != 0 && events >= options_.max_events) {
             completed = false;
             break;
         }
         stats_.begin_timestep(timestep, next_timestep_hw_start);
+        if (hardware_.core.source_packet_fifo) {
+            std::fill(source_blocking_offsets_.begin(), source_blocking_offsets_.end(), 0);
+            if (std::any_of(source_packet_active_.begin(), source_packet_active_.end(),
+                            [](std::uint8_t active) { return active != 0; })) {
+                throw std::logic_error("timestep 开始前 source packet FIFO 必须为空");
+            }
+        }
         if (!queue_.empty()) {
             throw std::logic_error("timestep 开始前 global queue 必须为空");
         }
@@ -253,14 +324,7 @@ SimulationResult Simulator::run_timestep_synchronization() {
                 break;
             }
             Spike spike = queue_.pop();
-            // global queue 只包含 Data，host 开销归到其目标层。
-            const std::size_t metric_layer = spike.destination_layer;
-            const auto host_event_start = std::chrono::steady_clock::now();
             process_data(spike);
-            const auto host_event_end = std::chrono::steady_clock::now();
-            stats_.record_host_latency(
-                metric_layer, spike.timestep,
-                std::chrono::duration<double>(host_event_end - host_event_start).count());
             ++events;
         }
         if (!completed) break;
@@ -269,6 +333,10 @@ SimulationResult Simulator::run_timestep_synchronization() {
         next_timestep_hw_start = stats_.hw_latency() + synchronization_hw_latency;
         stats_.complete_timestep(timestep, next_timestep_hw_start,
                                  synchronization_hw_latency);
+        const auto timestep_host_end = std::chrono::steady_clock::now();
+        stats_.record_timestep_host_latency(
+            timestep,
+            std::chrono::duration<double>(timestep_host_end - timestep_host_start).count());
     }
     const auto host_end = std::chrono::steady_clock::now();
     stats_.set_host_latency(std::chrono::duration<double>(host_end - host_start).count());

@@ -41,10 +41,12 @@ class Core {
 public:
     Core(const LayerMapping& mapping, const HardwareConfig& hardware, const LayerWeights& weights,
          PhysicalCoreAddress address, std::uint64_t physical_neuron_begin,
-         std::uint64_t physical_neuron_count);
+         std::uint64_t physical_neuron_count, std::uint32_t max_connection_delay = 0);
 
     CoreReceiveResult receive(std::uint64_t source_neuron, float value, std::uint32_t timestep,
-                              SimTime hw_arrival_time);
+                              SimTime hw_arrival_time,
+                              const LayerWeights* connection_weights = nullptr,
+                              std::uint32_t connection_delay = 0);
     CoreNeuronProcessResult process_timestep(std::uint32_t timestep, SimTime hw_arrival_time);
     const std::vector<float>& output_scores() const { return soma_.voltage(); }
     const PhysicalCoreAddress& address() const { return address_; }
@@ -60,9 +62,10 @@ private:
     std::uint64_t physical_neuron_count_ = 0;
     HardwareResource compute_pipeline_;
     SomaState soma_;
-    std::vector<float> timestep_buffer_;
-    std::vector<std::uint8_t> timestep_pending_;
-    std::uint32_t buffered_timestep_ = 0;
+    std::vector<std::vector<float>> delayed_buffers_;
+    std::vector<std::vector<std::uint8_t>> delayed_pending_;
+    std::size_t next_buffer_ = 0;
+    std::uint32_t processed_timestep_ = 0;
 };
 
 }  // namespace soma

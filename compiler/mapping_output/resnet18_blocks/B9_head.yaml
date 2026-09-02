@@ -1,0 +1,55 @@
+mapping:
+  model: resnet18_imagenet_B9_head_t16
+  policy: sanafe_sequential_contiguous_cores
+  hardware: arch/resnet18_sanafe.yaml
+  layers:
+    - id: input
+      partition: virtual
+      op: input
+      pe: 0
+      core: 0
+      router: 0
+      neurons: 25088
+      input_h: 7
+      input_w: 7
+      input_channels: 512
+      output_h: 7
+      output_w: 7
+      output_channels: 512
+      aggregate_core_count: 25
+      physical_neuron_order: channel_major
+      weight_prefix: input
+      virtual_input: true
+    - id: readout
+      partition: contiguous_physical
+      op: linear
+      pe: 6
+      core: 1
+      router: 6
+      neurons: 1000
+      input_h: 1
+      input_w: 1
+      input_channels: 1000
+      output_h: 1
+      output_w: 1
+      output_channels: 1000
+      aggregate_core_count: 1
+      physical_neuron_order: channel_major
+      weight_prefix: readout
+      source_neurons: 25088
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      membrane_quantization_step: 0.015625
+      threshold_comparison: greater
+      readout: true
+  connections:
+    - from: input
+      to: readout
+      type: dense
+      weight_prefix: readout
+      delay: 0
+  routes:
+    - from: input
+      to: readout
+      routers: [0, 1, 2, 3, 4, 5, 6]

@@ -7,8 +7,8 @@
 
 #include <array>
 #include <cstddef>
-#include <deque>
-#include <unordered_map>
+#include <limits>
+#include <queue>
 #include <vector>
 
 namespace soma {
@@ -18,6 +18,7 @@ struct NocTiming {
     SimTime hw_traversal_latency = 0;
     SimTime hw_congestion_latency = 0;
     SimTime hw_link_busy_latency = 0;
+    SimTime hw_source_blocking_latency = 0;
     std::uint64_t hops = 0;
     std::array<std::uint64_t, 5> port_hops{};
 };
@@ -30,6 +31,10 @@ public:
     NocTiming traverse(SimTime hw_arrival_time, std::uint32_t source_router,
                        std::uint32_t destination_router);
     NocTiming traverse(SimTime hw_arrival_time, std::uint32_t source_router,
+                       std::uint32_t destination_router,
+                       std::uint32_t destination_core_offset);
+    NocTiming traverse(SimTime hw_arrival_time, std::uint32_t source_router,
+                       std::uint32_t source_core_offset,
                        std::uint32_t destination_router,
                        std::uint32_t destination_core_offset);
     void record_destination_processing(SimTime hw_processing_start_time,
@@ -50,20 +55,47 @@ private:
         SimTime hw_processing_service = 0;
     };
     struct DestinationFlow {
-        std::vector<std::deque<FifoEntry>> fifo_queues;
+        // 每个 destination router 只初始化一次 flat ring；热路径只移动 head/size。
+        std::vector<FifoEntry> fifo_entries;
+        std::vector<std::size_t> fifo_heads;
+        std::vector<std::size_t> fifo_sizes;
         std::vector<std::uint32_t> next_fifo_by_core;
+        std::size_t fifo_capacity = 0;
         SimTime total_processing_service = 0;
+        bool initialized = false;
     };
-    std::unordered_map<std::uint32_t, DestinationFlow> destination_flows_;
+    std::vector<DestinationFlow> destination_flows_;
     std::uint32_t pending_destination_router_ = 0;
     std::size_t pending_fifo_index_ = 0;
     bool has_pending_fifo_packet_ = false;
+
+    struct InFlight {
+        SimTime release = 0;
+        SimTime service = 0;
+        std::uint32_t source = 0;
+        std::uint32_t destination = 0;
+        std::uint32_t source_core = 0;
+    };
+    struct EarlierRelease {
+        bool operator()(const InFlight& left, const InFlight& right) const {
+            return left.release > right.release;
+        }
+    };
+    std::vector<double> route_density_;
+    std::priority_queue<InFlight, std::vector<InFlight>, EarlierRelease> in_flight_;
+    InFlight pending_in_flight_;
+    double in_flight_service_ = 0.0;
+    std::uint64_t in_flight_count_ = 0;
+    bool has_pending_in_flight_ = false;
 
     std::size_t resource_index(std::uint32_t router, Port port) const;
     void traverse_hop(NocTiming& result, std::uint32_t source, std::uint32_t destination);
     void traverse_local(NocTiming& result, std::uint32_t destination);
     void traverse_local(NocTiming& result, std::uint32_t destination,
                         std::uint32_t destination_core_offset);
+    void adjust_density(const InFlight& message, double sign);
+    double route_density(const InFlight& message) const;
+    void retire_in_flight(SimTime time);
 };
 
 }  // namespace soma

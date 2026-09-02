@@ -99,7 +99,7 @@ MAX_NEURONS_PER_CORE = 1024
 NOC_ROWS = 128
 
 
-def layer_yaml(layer: Dict[str, object], start_core: int, next_id: str) -> List[str]:
+def layer_yaml(layer: Dict[str, object], start_core: int) -> List[str]:
     tile = start_core // CORES_PER_TILE
     core = start_core % CORES_PER_TILE
     core_count = math.ceil(int(layer["neurons"]) / MAX_NEURONS_PER_CORE)
@@ -117,8 +117,6 @@ def layer_yaml(layer: Dict[str, object], start_core: int, next_id: str) -> List[
         lines += ["      threshold: 1.0", "      leak: 1.0", "      reset: soft"]
     if layer.get("channelwise"):
         lines.append("      channelwise: true")
-    if next_id:
-        lines.append(f"      next: {next_id}")
     if layer["id"] == "readout":
         lines.append("      readout: true")
     return lines
@@ -198,14 +196,21 @@ def build_assets(source_path: Path, weights_path: Path, mapping_path: Path) -> N
              "      op: input", "      pe: 0", "      core: 0", "      router: 0", "      neurons: 6144",
              "      input_h: 32", "      input_w: 32", "      input_channels: 6", "      output_h: 32",
              "      output_w: 32", "      output_channels: 6", "      aggregate_core_count: 6",
-             "      physical_neuron_order: channel_major", "      next: conv0", "      virtual_input: true"]
+             "      physical_neuron_order: channel_major", "      virtual_input: true"]
     core_cursor = 6
     placements = [("input", 0)]
     for index, layer in enumerate(layers):
-        next_id = str(layers[index + 1]["id"]) if index + 1 < len(layers) else ""
-        lines.extend(layer_yaml(layer, core_cursor, next_id))
+        lines.extend(layer_yaml(layer, core_cursor))
         placements.append((str(layer["id"]), core_cursor // CORES_PER_TILE))
         core_cursor += math.ceil(int(layer["neurons"]) / MAX_NEURONS_PER_CORE)
+    lines.append("  connections:")
+    for index in range(len(placements) - 1):
+        source_id, _ = placements[index]
+        target_id, _ = placements[index + 1]
+        connection_type = "dense" if target_id in {"fc1", "fc2", "readout"} else "spatial"
+        lines += [f"    - from: {source_id}", f"      to: {target_id}",
+                  f"      type: {connection_type}", f"      weight_prefix: {target_id}",
+                  "      delay: 0"]
     lines.append("  routes:")
     for index in range(len(placements) - 1):
         source_id, source_router = placements[index]

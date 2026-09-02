@@ -67,6 +67,8 @@ HardwareConfig HardwareConfig::load(const std::string& path) {
     const auto& noc = architecture.at("noc");
     config.noc.topology = yaml::get_string(noc, "topology", "mesh");
     config.noc.routing = yaml::get_string(noc, "routing", "static");
+    config.noc.congestion_model = yaml::get_string(
+        noc, "congestion_model", "destination_flow");
     config.noc.rows = static_cast<std::uint32_t>(yaml::get_u64(noc, "rows", 1));
     config.noc.cols = static_cast<std::uint32_t>(yaml::get_u64(noc, "cols", 1));
     config.noc.virtual_channels = static_cast<std::uint32_t>(yaml::get_u64(noc, "virtual_channels", 1));
@@ -119,6 +121,7 @@ HardwareConfig HardwareConfig::load(const std::string& path) {
     config.core.input_buffer_depth = static_cast<std::uint32_t>(yaml::get_u64(core, "input_buffer_depth", 16));
     config.core.input_fifo = yaml::get_bool(core, "input_fifo", false);
     config.core.fifo_per_core = yaml::get_bool(core, "fifo_per_core", false);
+    config.core.source_packet_fifo = yaml::get_bool(core, "source_packet_fifo", false);
     config.core.fifo_num_per_core = static_cast<std::uint32_t>(
         yaml::get_u64(core, "fifo_num_per_core", 1));
     config.core.fifo_depth_per_core = static_cast<std::uint32_t>(
@@ -134,6 +137,8 @@ HardwareConfig HardwareConfig::load(const std::string& path) {
         synapse_hw_latency, "spatial", 0);
     config.core.dense_synapse_hw_latency = hw_latency_field(
         synapse_hw_latency, "dense", 0);
+    config.core.identity_synapse_hw_latency = hw_latency_field(
+        synapse_hw_latency, "identity", config.core.spatial_synapse_hw_latency);
     config.core.soma_access_hw_latency = hw_latency_field(hw_latency, "soma_access", 0);
     config.core.soma_update_hw_latency = hw_latency_field(hw_latency, "soma_update", 0);
     config.core.soma_fire_hw_latency = hw_latency_field(hw_latency, "soma_fire", 0);
@@ -155,6 +160,12 @@ HardwareConfig HardwareConfig::load(const std::string& path) {
     config.energy.sram_read_pj = yaml::get_double(energy, "sram_read", 0.0);
     config.energy.sram_write_pj = yaml::get_double(energy, "sram_write", 0.0);
     config.energy.synapse_pj = yaml::get_double(energy, "synapse", 0.0);
+    config.energy.spatial_synapse_pj = yaml::get_double(
+        energy, "synapse_spatial", config.energy.synapse_pj);
+    config.energy.dense_synapse_pj = yaml::get_double(
+        energy, "synapse_dense", config.energy.synapse_pj);
+    config.energy.identity_synapse_pj = yaml::get_double(
+        energy, "synapse_identity", config.energy.synapse_pj);
     config.energy.soma_update_pj = yaml::get_double(energy, "soma_update", 0.0);
     config.energy.soma_fire_pj = yaml::get_double(energy, "soma_fire", 0.0);
     config.validate();
@@ -171,6 +182,11 @@ void HardwareConfig::validate() const {
         throw std::runtime_error("frequency_mhz 必须为正");
     }
     if (noc.topology != "mesh") throw std::runtime_error("MVP 目前只支持 mesh topology");
+    if (noc.congestion_model != "resource_table" &&
+        noc.congestion_model != "destination_flow" &&
+        noc.congestion_model != "route_density") {
+        throw std::runtime_error("不支持的 NoC congestion_model: " + noc.congestion_model);
+    }
     if (noc.rows == 0 || noc.cols == 0) throw std::runtime_error("NoC rows/cols 必须为正");
     if (noc.virtual_channels != 1) throw std::runtime_error("MVP 只支持一个 virtual channel");
     if (!noc.send_data) throw std::runtime_error("link.send.data 必须启用");
@@ -186,6 +202,14 @@ void HardwareConfig::validate() const {
     if (core.input_fifo &&
         (core.fifo_num_per_core == 0 || core.fifo_depth_per_core == 0)) {
         throw std::runtime_error("每 Core 的 FIFO 数量和深度必须为正");
+    }
+    if (noc.congestion_model == "route_density" &&
+        (!core.input_fifo || !core.source_packet_fifo)) {
+        throw std::runtime_error(
+            "route_density 要求 input_fifo 和 source_packet_fifo 同时启用");
+    }
+    if (core.source_packet_fifo && noc.congestion_model != "route_density") {
+        throw std::runtime_error("source_packet_fifo 当前仅与 route_density 配合使用");
     }
     if (core.default_threshold <= 0.0F) throw std::runtime_error("默认 threshold 必须为正");
     if (timestep_synchronization() && noc.timestep_sync_hw_latency.empty()) {

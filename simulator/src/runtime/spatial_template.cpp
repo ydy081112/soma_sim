@@ -38,7 +38,10 @@ void SpatialTemplate::validate(std::size_t source_neurons, std::size_t destinati
                     throw std::runtime_error("channelwise SpatialTemplate 权重或通道不匹配");
                 }
             } else if (weight.size() % cin != 0 || static_cast<std::size_t>(offset) + cout > weight.size() / cin) {
-                throw std::runtime_error("SpatialTemplate weight offset 越界");
+                throw std::runtime_error(
+                    "SpatialTemplate weight offset 越界: offset=" + std::to_string(offset) +
+                    ", cout=" + std::to_string(cout) + ", weight=" +
+                    std::to_string(weight.size()) + ", cin=" + std::to_string(cin));
             }
         }
     }

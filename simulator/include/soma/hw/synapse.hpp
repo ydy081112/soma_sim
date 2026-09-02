@@ -15,7 +15,13 @@ public:
     template <typename Fn>
     static std::uint64_t apply(const LayerWeights& weights, std::uint64_t source_neuron,
                                float value, std::uint64_t destination_neurons, Fn&& update) {
-        if (weights.op == LayerOp::Linear) {
+        if (weights.connection_type == ConnectionType::Identity) {
+            if (source_neuron >= destination_neurons) throw std::runtime_error("identity source neuron 越界");
+            const auto wi = weights.identity_weight.size() == 1 ? 0 : source_neuron;
+            update(source_neuron, value * weights.identity_weight.at(wi));
+            return 1;
+        }
+        if (weights.connection_type == ConnectionType::Dense || weights.op == LayerOp::Linear) {
             // source-major [Cin,Cout] 让一个 source spike 顺序读取一整行权重。
             const auto source_neurons = weights.dense_weight.size() / destination_neurons;
             if (source_neuron >= source_neurons) throw std::runtime_error("dense source neuron 越界");
@@ -37,13 +43,21 @@ public:
                                                Fn&& visit) {
         const auto partition_count = static_cast<std::uint32_t>(
             (destination.neurons + max_neurons_per_core - 1) / max_neurons_per_core);
-        if (weights.op == LayerOp::Linear) {
+        if (weights.connection_type == ConnectionType::Identity) {
+            const auto physical = destination.physical_neuron_index(source_neuron);
+            visit(static_cast<std::uint32_t>(physical / max_neurons_per_core));
+            return;
+        }
+        if (weights.connection_type == ConnectionType::Dense || weights.op == LayerOp::Linear) {
             for (std::uint32_t partition = 0; partition < partition_count; ++partition) visit(partition);
             return;
         }
 
         const auto& spatial = weights.spatial;
-        if (source_neuron >= destination.source_neurons) {
+        const auto configured_sources = weights.source_neurons == 0
+                                            ? destination.source_neurons
+                                            : weights.source_neurons;
+        if (source_neuron >= configured_sources) {
             throw std::runtime_error(destination.id + ": packet source neuron 越界");
         }
         const auto source_spatial = static_cast<std::size_t>(source_neuron / spatial.cin);
@@ -97,8 +111,25 @@ public:
             throw std::runtime_error(destination.id + ": physical Core neuron range 不合法");
         }
         std::uint64_t updates = 0;
-        if (weights.op == LayerOp::Linear) {
-            if (source_neuron >= destination.source_neurons) {
+        if (weights.connection_type == ConnectionType::Identity) {
+            if (source_neuron >= weights.source_neurons) throw std::runtime_error("identity source neuron 越界");
+            const auto physical = destination.physical_neuron_index(source_neuron);
+            if (physical_begin <= physical && physical < physical_end) {
+                std::size_t wi = 0;
+                if (weights.identity_weight.size() == destination.output_channels)
+                    wi = static_cast<std::size_t>(source_neuron % destination.output_channels);
+                else if (weights.identity_weight.size() == destination.neurons)
+                    wi = static_cast<std::size_t>(source_neuron);
+                update(source_neuron, value * weights.identity_weight.at(wi));
+                return 1;
+            }
+            return 0;
+        }
+        if (weights.connection_type == ConnectionType::Dense || weights.op == LayerOp::Linear) {
+            const auto configured_sources = weights.source_neurons == 0
+                                                ? destination.source_neurons
+                                                : weights.source_neurons;
+            if (source_neuron >= configured_sources) {
                 throw std::runtime_error(destination.id + ": dense source neuron 越界");
             }
             const auto base = source_neuron * destination.neurons;

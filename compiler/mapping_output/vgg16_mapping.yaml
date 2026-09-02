@@ -18,7 +18,6 @@ mapping:
       output_channels: 6
       aggregate_core_count: 6
       physical_neuron_order: channel_major
-      next: conv0
       virtual_input: true
     - id: conv0
       partition: contiguous_physical
@@ -40,7 +39,6 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: conv1
     - id: conv1
       partition: contiguous_physical
       op: conv2d
@@ -61,7 +59,6 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: conv2
     - id: conv2
       partition: contiguous_physical
       op: conv2d
@@ -82,7 +79,6 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: conv3
     - id: conv3
       partition: contiguous_physical
       op: conv2d
@@ -103,7 +99,6 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: conv4
     - id: conv4
       partition: contiguous_physical
       op: conv2d
@@ -124,7 +119,6 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: conv5
     - id: conv5
       partition: contiguous_physical
       op: conv2d
@@ -145,7 +139,6 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: conv6
     - id: conv6
       partition: contiguous_physical
       op: conv2d
@@ -166,7 +159,6 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: conv7
     - id: conv7
       partition: contiguous_physical
       op: conv2d
@@ -187,7 +179,6 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: conv8
     - id: conv8
       partition: contiguous_physical
       op: conv2d
@@ -208,7 +199,6 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: conv9
     - id: conv9
       partition: contiguous_physical
       op: conv2d
@@ -229,7 +219,6 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: conv10
     - id: conv10
       partition: contiguous_physical
       op: conv2d
@@ -250,7 +239,6 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: conv11
     - id: conv11
       partition: contiguous_physical
       op: conv2d
@@ -271,7 +259,6 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: conv12
     - id: conv12
       partition: contiguous_physical
       op: conv2d
@@ -292,7 +279,6 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: fc1
     - id: fc1
       partition: contiguous_physical
       op: linear
@@ -313,7 +299,6 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: fc2
     - id: fc2
       partition: contiguous_physical
       op: linear
@@ -334,7 +319,6 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: readout
     - id: readout
       partition: contiguous_physical
       op: linear
@@ -353,6 +337,87 @@ mapping:
       physical_neuron_order: logical
       weight_prefix: readout
       readout: true
+  connections:
+    - from: input
+      to: conv0
+      type: spatial
+      weight_prefix: conv0
+      delay: 0
+    - from: conv0
+      to: conv1
+      type: spatial
+      weight_prefix: conv1
+      delay: 0
+    - from: conv1
+      to: conv2
+      type: spatial
+      weight_prefix: conv2
+      delay: 0
+    - from: conv2
+      to: conv3
+      type: spatial
+      weight_prefix: conv3
+      delay: 0
+    - from: conv3
+      to: conv4
+      type: spatial
+      weight_prefix: conv4
+      delay: 0
+    - from: conv4
+      to: conv5
+      type: spatial
+      weight_prefix: conv5
+      delay: 0
+    - from: conv5
+      to: conv6
+      type: spatial
+      weight_prefix: conv6
+      delay: 0
+    - from: conv6
+      to: conv7
+      type: spatial
+      weight_prefix: conv7
+      delay: 0
+    - from: conv7
+      to: conv8
+      type: spatial
+      weight_prefix: conv8
+      delay: 0
+    - from: conv8
+      to: conv9
+      type: spatial
+      weight_prefix: conv9
+      delay: 0
+    - from: conv9
+      to: conv10
+      type: spatial
+      weight_prefix: conv10
+      delay: 0
+    - from: conv10
+      to: conv11
+      type: spatial
+      weight_prefix: conv11
+      delay: 0
+    - from: conv11
+      to: conv12
+      type: spatial
+      weight_prefix: conv12
+      delay: 0
+    - from: conv12
+      to: fc1
+      type: dense
+      weight_prefix: fc1
+      delay: 0
+    - from: fc1
+      to: fc2
+      type: dense
+      weight_prefix: fc2
+      delay: 0
+    - from: fc2
+      to: readout
+      type: dense
+      weight_prefix: readout
+      delay: 0
   routes:
     - from: input
       to: conv0

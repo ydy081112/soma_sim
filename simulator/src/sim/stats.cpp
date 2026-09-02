@@ -92,6 +92,11 @@ void Statistics::record_host_latency(std::size_t layer, std::uint32_t step,
     timestep(step).host_latency_s += host_latency_s;
 }
 
+void Statistics::record_timestep_host_latency(std::uint32_t step, double host_latency_s) {
+    // timestep CSV 保留整个 timestep 的 host 聚合，不再依赖逐 packet 时钟采样。
+    timestep(step).host_latency_s = host_latency_s;
+}
+
 void Statistics::add_inject_hw_latency(std::uint32_t, SimTime hw_latency) {
     breakdown_.pe_inject_hw_latency += hw_latency;
 }
@@ -117,7 +122,8 @@ void Statistics::add_soma_hw_latency(std::uint32_t step, SimTime service_hw_late
     timestep(step).soma_service_hw_latency += service_hw_latency;
 }
 
-void Statistics::add_data_energy(const NocTiming& noc, std::uint64_t updates) {
+void Statistics::add_data_energy(const NocTiming& noc, std::uint64_t updates,
+                                 ConnectionType connection_type) {
     // 通信能耗按方向 hop 计数，计算能耗按实际 synaptic update 计数。
     energy_.axon_pj += hardware_.energy.axon_out_pj + hardware_.energy.axon_in_pj;
     energy_.router_pj += static_cast<double>(noc.hops + 1) * hardware_.energy.router_hop_pj;
@@ -127,7 +133,12 @@ void Statistics::add_data_energy(const NocTiming& noc, std::uint64_t updates) {
                        static_cast<double>(noc.port_hops[static_cast<std::size_t>(Port::West)]) * hardware_.energy.west_link_pj;
     energy_.memory_pj += hardware_.energy.sram_read_pj +
                          static_cast<double>(updates) * hardware_.energy.sram_write_pj;
-    energy_.synapse_pj += static_cast<double>(updates) * hardware_.energy.synapse_pj;
+    const auto synapse_pj = connection_type == ConnectionType::Dense
+                                ? hardware_.energy.dense_synapse_pj
+                            : connection_type == ConnectionType::Identity
+                                ? hardware_.energy.identity_synapse_pj
+                                : hardware_.energy.spatial_synapse_pj;
+    energy_.synapse_pj += static_cast<double>(updates) * synapse_pj;
 }
 
 void Statistics::add_neuron_energy(std::uint64_t updated_neurons) {

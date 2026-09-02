@@ -21,31 +21,52 @@ WeightStore WeightStore::load(const std::string& path, const MappingConfig& mapp
         if (!weights.bias.empty() && weights.bias.size() != layer.output_channels) {
             throw std::runtime_error(layer.id + ": bias shape 不匹配");
         }
-        // linear
-        if (layer.op == LayerOp::Linear) {
+        store.layers_.emplace(layer.id, std::move(weights));
+    }
+    store.connections_.reserve(mapping.connections.size());
+    for (const auto& connection : mapping.connections) {
+        const auto& source = mapping.layer(connection.from);
+        const auto& layer = mapping.layer(connection.to);
+        LayerWeights weights;
+        weights.op = layer.op;
+        weights.connection_type = connection.type;
+        weights.hardware_type = connection.hardware_type;
+        weights.source_neurons = source.neurons;
+        const auto& prefix = connection.weight_prefix;
+        if (connection.type == ConnectionType::Dense) {
             // Linear 按 [Cin,Cout] 保存，固定 source 后整段 Cout 连续。
             const auto& array = archive.at(prefix + "_weight");
             weights.dense_weight = array.as_f32();
-            if (weights.dense_weight.size() != layer.source_neurons * layer.neurons) {
+            if (weights.dense_weight.size() != source.neurons * layer.neurons) {
                 throw std::runtime_error(layer.id + ": dense [Cin,Cout] weight shape 不匹配");
             }
-        // conv
+        } else if (connection.type == ConnectionType::Identity) {
+            weights.identity_weight = archive.at(prefix + "_weight").as_f32();
+            if (weights.identity_weight.size() != 1 &&
+                weights.identity_weight.size() != layer.output_channels &&
+                weights.identity_weight.size() != layer.neurons) {
+                throw std::runtime_error(layer.id + ": identity weight 必须为 scalar/channel/neuron");
+            }
         } else {
             // 下面的 weights.spatial 是从 weights.npz 读出来
-            weights.spatial.cin = layer.input_channels;
+            weights.spatial.cin = source.output_channels;
             weights.spatial.cout = layer.output_channels;
-            weights.spatial.channelwise = layer.channelwise;
+            weights.spatial.channelwise = connection.channelwise;
             weights.spatial.weight = archive.at(prefix + "_weight").as_f32();
             weights.spatial.plan_pattern_id = archive.at(prefix + "_plan_pattern_id").as_i32();
             weights.spatial.plan_dst_base = archive.at(prefix + "_plan_dst_base").as_i32();
             weights.spatial.pattern_ptr = archive.at(prefix + "_pattern_ptr").as_i32();
             weights.spatial.pattern_dst_offset = archive.at(prefix + "_pattern_dst_offset").as_i32();
             weights.spatial.pattern_weight_offset = archive.at(prefix + "_pattern_weight_offset").as_i64();
-            weights.spatial.validate(layer.source_neurons, layer.neurons);
+            weights.spatial.validate(source.neurons, layer.neurons);
         }
-        store.layers_.emplace(layer.id, std::move(weights));
+        store.connections_.push_back(std::move(weights));
     }
     return store;
+}
+
+const LayerWeights& WeightStore::connection(std::size_t connection_index) const {
+    return connections_.at(connection_index);
 }
 
 const LayerWeights& WeightStore::at(const std::string& layer_id) const {

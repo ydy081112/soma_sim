@@ -1,0 +1,54 @@
+mapping:
+  model: resnet18_imagenet_B0_stem_t16
+  policy: sanafe_sequential_contiguous_cores
+  hardware: arch/resnet18_sanafe.yaml
+  layers:
+    - id: input
+      partition: virtual
+      op: input
+      pe: 0
+      core: 0
+      router: 0
+      neurons: 301056
+      input_h: 224
+      input_w: 224
+      input_channels: 6
+      output_h: 224
+      output_w: 224
+      output_channels: 6
+      aggregate_core_count: 294
+      physical_neuron_order: channel_major
+      weight_prefix: input
+      virtual_input: true
+    - id: output
+      partition: contiguous_physical
+      op: conv2d
+      pe: 73
+      core: 2
+      router: 73
+      neurons: 802816
+      input_h: 112
+      input_w: 112
+      input_channels: 64
+      output_h: 112
+      output_w: 112
+      output_channels: 64
+      aggregate_core_count: 784
+      physical_neuron_order: channel_major
+      weight_prefix: output
+      source_neurons: 301056
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      membrane_quantization_step: 0.015625
+      threshold_comparison: greater
+  connections:
+    - from: input
+      to: output
+      type: spatial
+      weight_prefix: stem
+      delay: 0
+  routes:
+    - from: input
+      to: output
+      routers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73]
