@@ -42,8 +42,10 @@ ctest --test-dir build --output-on-failure
 - `weights.npz` 使用无 pickle 的 NumPy 数组。Conv 权重为 `[Cin,Kh,Kw,Cout]`，Linear 为 `[Cin,Cout]`，并带 `plan_pattern_id`、`plan_dst_base`、`pattern_ptr`、`pattern_dst_offset`、`pattern_weight_offset`。
 - 逻辑 neuron id 使用 spatial-major：`(y * W + x) * C + channel`；mapping 可用 `physical_neuron_order: channel_major` 指定 SANA-FE 风格的物理连续分区顺序。
 - `hardware.yaml` 的 `architecture.execution_mode` 控制执行语义；当前 Loihi-style 配置使用 `timestep_synchronization`。
-- 同步模式按“neuron processing → Data/NoC/synaptic accumulation → barrier”执行；一个 firing 按 destination physical Core 拆成 packet，Data 只写下一 timestep buffer，global queue 中只有真实 Data packet。
+- `core.input_fifo` 启用目的端输入 FIFO；当前紧凑模型要求 `fifo_per_core: true`，并由 `fifo_num_per_core`、`fifo_depth_per_core` 决定每个 physical Core 的队列数量和基础路径容量。
+- 同步模式中，外部 input 从 timestep start 入队，各 Core 同时开始 neuron processing；内部 firing 保留各自真实完成时刻，两类 Data 按 generation time 在 global queue 中交错处理。一个 firing 按 destination physical Core 拆成 packet，Data 只写下一 timestep buffer，queue 中只有真实 Data packet。
 - soma timing 分为每个 mapped neuron 的 `soma_access`，以及仅对实际 state update 收取的 `soma_update`。
+- synapse timing 按 destination layer 类型分为 `synapse.spatial` 和 `synapse.dense`，当前分别为 3.1 ns 与 3.8 ns。
 - `input_spike.csv` 的逻辑 `timestep` 从 1 开始；同步模式下 `generated_time/current_time` 均写 0，实际硬件时间由 simulator 在逐 timestep 注入时生成。
 
 用原始 CIFAR-10 pickle 或项目提供的 sample NPZ 生成 rate-coded 输入：

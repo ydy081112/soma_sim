@@ -11,3 +11,6 @@
 /docs/background.md
 __pycache__/
 *.pyc
+
+# 实验性对比图、临时方案和审计数据不随正式源码发布。
+others/

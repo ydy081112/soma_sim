@@ -68,10 +68,9 @@ private:
     void enqueue_packets(std::size_t source_layer, std::uint64_t source_neuron,
                          float value, std::uint32_t timestep, SimTime generated_time,
                          SimTime current_time, std::uint64_t spike_id = 0);
-    SimTime process_neurons(std::uint32_t timestep, SimTime hw_start_time);
+    void process_neurons(std::uint32_t timestep, SimTime hw_start_time);
     void push_firings(std::size_t layer, std::uint32_t timestep,
-                      const std::vector<CoreFiringResult>& firings,
-                      SimTime data_phase_start);
+                      const std::vector<CoreFiringResult>& firings);
     SimulationResult run_timestep_synchronization();
     PhysicalCoreAddress source_core_address(std::size_t layer,
                                             std::uint64_t logical_neuron) const;

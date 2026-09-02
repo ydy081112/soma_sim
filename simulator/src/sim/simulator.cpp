@@ -92,12 +92,9 @@ void Simulator::inject_timestep(std::uint32_t timestep, SimTime hw_start_time) {
     }
 }
 
-SimTime Simulator::process_neurons(std::uint32_t timestep, SimTime hw_start_time) {
-    if (!queue_.empty()) {
-        throw std::logic_error("neuron processing 开始前 global queue 必须为空");
-    }
-    // 所有 Core 先读取上一 timestep 的 accumulation；代码顺序不改变各 Core 的独立资源并行性。
-    SimTime data_phase_start = hw_start_time;
+void Simulator::process_neurons(std::uint32_t timestep, SimTime hw_start_time) {
+    // 输入 packet 可先以 timestep start 为时标入队；此阶段只生成 firing，不消费 queue。
+    // 所有 Core 读取上一 timestep accumulation，并保留各自 neuron loop 中的真实完成时刻。
     std::vector<std::pair<std::size_t, std::vector<CoreFiringResult>>> pending_firings;
     for (const auto& layer : mapping_.layers) {
         if (layer.op == LayerOp::Input) continue;
@@ -109,7 +106,6 @@ SimTime Simulator::process_neurons(std::uint32_t timestep, SimTime hw_start_time
                                        result.hw_compute_latency);
             stats_.add_neuron_energy(result.updated_neurons);
             stats_.record_neuron_processing(layer.index, timestep, result.hw_finish_time);
-            data_phase_start = std::max(data_phase_start, result.hw_finish_time);
             pending_firings.emplace_back(layer.index, std::move(result.firings));
             stats_.record_host_latency(
                 layer.index, timestep,
@@ -117,22 +113,19 @@ SimTime Simulator::process_neurons(std::uint32_t timestep, SimTime hw_start_time
         }
     }
     for (const auto& [layer, firings] : pending_firings) {
-        push_firings(layer, timestep, firings, data_phase_start);
+        push_firings(layer, timestep, firings);
     }
-    return data_phase_start;
 }
 
 void Simulator::push_firings(std::size_t layer_index, std::uint32_t timestep,
-                             const std::vector<CoreFiringResult>& firings,
-                             SimTime data_phase_start) {
+                             const std::vector<CoreFiringResult>& firings) {
     const auto& layer = mapping_.layer(layer_index);
     for (const auto& firing : firings) {
         stats_.record_emit(layer_index, timestep, firing.hw_finish_time);
         stats_.add_fire_energy();
         if (layer.next.empty()) continue;
         enqueue_packets(layer_index, firing.fired.neuron, firing.fired.value, timestep,
-                        firing.hw_finish_time,
-                        std::max(firing.hw_finish_time, data_phase_start));
+                        firing.hw_finish_time, firing.hw_finish_time);
     }
 }
 
@@ -186,7 +179,9 @@ void Simulator::process_data(Spike& spike) {
     spike.current_time = injection.hw_finish_time;
 
     // noc
-    const auto noc = routers_.traverse(spike.current_time, source.router, destination.router);
+    const auto noc = routers_.traverse(spike.current_time, source.router,
+                                       destination.router,
+                                       destination.core_within_tile);
     stats_.add_noc_hw_latency(spike.timestep, noc);
     spike.current_time = noc.hw_arrival_time;
     
@@ -194,6 +189,10 @@ void Simulator::process_data(Spike& spike) {
     auto& core = *target_runtime.cores.at(spike.destination_partition);
     const auto receive = core.receive(spike.source_neuron, spike.value, spike.timestep, spike.current_time);
     spike.current_time = receive.hw_finish_time;
+    const auto receive_service = receive.hw_axon_in_service_latency +
+                                 receive.hw_synapse_service_latency;
+    routers_.record_destination_processing(
+        receive.hw_finish_time - receive_service, receive_service);
 
     stats_.add_synapse_hw_latency(spike.timestep, receive.hw_synapse_service_latency,
                                   receive.hw_compute_latency);
@@ -240,9 +239,12 @@ SimulationResult Simulator::run_timestep_synchronization() {
             break;
         }
         stats_.begin_timestep(timestep, next_timestep_hw_start);
-        // t 的 neuron phase 只消费 t-1 buffer；随后本步全部 Data 只写下一批 buffer。
-        const auto data_phase_start = process_neurons(timestep, next_timestep_hw_start);
-        inject_timestep(timestep, data_phase_start);
+        if (!queue_.empty()) {
+            throw std::logic_error("timestep 开始前 global queue 必须为空");
+        }
+        // input 从 timestep start 进入 queue；内部 firing 随后按各 Core 的真实时标交错入队。
+        inject_timestep(timestep, next_timestep_hw_start);
+        process_neurons(timestep, next_timestep_hw_start);
 
         // 当前 timestep 的真实 Data、NoC 和 synaptic accumulation 全部完成后才进入 barrier。
         while (!queue_.empty()) {

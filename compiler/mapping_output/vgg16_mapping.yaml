@@ -61,39 +61,17 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: pool0
-    - id: pool0
-      partition: contiguous_physical
-      op: avgpool2d
-      pe: 33
-      core: 2
-      router: 33
-      source_neurons: 65536
-      neurons: 16384
-      input_h: 32
-      input_w: 32
-      input_channels: 64
-      output_h: 16
-      output_w: 16
-      output_channels: 64
-      aggregate_core_count: 16
-      physical_neuron_order: channel_major
-      weight_prefix: pool0
-      threshold: 1.0
-      leak: 1.0
-      reset: soft
-      channelwise: true
       next: conv2
     - id: conv2
       partition: contiguous_physical
       op: conv2d
-      pe: 37
+      pe: 33
       core: 2
-      router: 37
-      source_neurons: 16384
+      router: 33
+      source_neurons: 65536
       neurons: 32768
-      input_h: 16
-      input_w: 16
+      input_h: 32
+      input_w: 32
       input_channels: 64
       output_h: 16
       output_w: 16
@@ -108,9 +86,9 @@ mapping:
     - id: conv3
       partition: contiguous_physical
       op: conv2d
-      pe: 45
+      pe: 41
       core: 2
-      router: 45
+      router: 41
       source_neurons: 32768
       neurons: 32768
       input_h: 16
@@ -125,39 +103,17 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: pool1
-    - id: pool1
-      partition: contiguous_physical
-      op: avgpool2d
-      pe: 53
-      core: 2
-      router: 53
-      source_neurons: 32768
-      neurons: 8192
-      input_h: 16
-      input_w: 16
-      input_channels: 128
-      output_h: 8
-      output_w: 8
-      output_channels: 128
-      aggregate_core_count: 8
-      physical_neuron_order: channel_major
-      weight_prefix: pool1
-      threshold: 1.0
-      leak: 1.0
-      reset: soft
-      channelwise: true
       next: conv4
     - id: conv4
       partition: contiguous_physical
       op: conv2d
-      pe: 55
+      pe: 49
       core: 2
-      router: 55
-      source_neurons: 8192
+      router: 49
+      source_neurons: 32768
       neurons: 16384
-      input_h: 8
-      input_w: 8
+      input_h: 16
+      input_w: 16
       input_channels: 128
       output_h: 8
       output_w: 8
@@ -172,9 +128,9 @@ mapping:
     - id: conv5
       partition: contiguous_physical
       op: conv2d
-      pe: 59
+      pe: 53
       core: 2
-      router: 59
+      router: 53
       source_neurons: 16384
       neurons: 16384
       input_h: 8
@@ -193,9 +149,9 @@ mapping:
     - id: conv6
       partition: contiguous_physical
       op: conv2d
-      pe: 63
+      pe: 57
       core: 2
-      router: 63
+      router: 57
       source_neurons: 16384
       neurons: 16384
       input_h: 8
@@ -210,39 +166,17 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: pool2
-    - id: pool2
-      partition: contiguous_physical
-      op: avgpool2d
-      pe: 67
-      core: 2
-      router: 67
-      source_neurons: 16384
-      neurons: 4096
-      input_h: 8
-      input_w: 8
-      input_channels: 256
-      output_h: 4
-      output_w: 4
-      output_channels: 256
-      aggregate_core_count: 4
-      physical_neuron_order: channel_major
-      weight_prefix: pool2
-      threshold: 1.0
-      leak: 1.0
-      reset: soft
-      channelwise: true
       next: conv7
     - id: conv7
       partition: contiguous_physical
       op: conv2d
-      pe: 68
+      pe: 61
       core: 2
-      router: 68
-      source_neurons: 4096
+      router: 61
+      source_neurons: 16384
       neurons: 8192
-      input_h: 4
-      input_w: 4
+      input_h: 8
+      input_w: 8
       input_channels: 256
       output_h: 4
       output_w: 4
@@ -257,9 +191,9 @@ mapping:
     - id: conv8
       partition: contiguous_physical
       op: conv2d
-      pe: 70
+      pe: 63
       core: 2
-      router: 70
+      router: 63
       source_neurons: 8192
       neurons: 8192
       input_h: 4
@@ -278,9 +212,9 @@ mapping:
     - id: conv9
       partition: contiguous_physical
       op: conv2d
-      pe: 72
+      pe: 65
       core: 2
-      router: 72
+      router: 65
       source_neurons: 8192
       neurons: 8192
       input_h: 4
@@ -295,39 +229,17 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: pool3
-    - id: pool3
-      partition: contiguous_physical
-      op: avgpool2d
-      pe: 74
-      core: 2
-      router: 74
-      source_neurons: 8192
-      neurons: 2048
-      input_h: 4
-      input_w: 4
-      input_channels: 512
-      output_h: 2
-      output_w: 2
-      output_channels: 512
-      aggregate_core_count: 2
-      physical_neuron_order: channel_major
-      weight_prefix: pool3
-      threshold: 1.0
-      leak: 1.0
-      reset: soft
-      channelwise: true
       next: conv10
     - id: conv10
       partition: contiguous_physical
       op: conv2d
-      pe: 75
-      core: 0
-      router: 75
-      source_neurons: 2048
+      pe: 67
+      core: 2
+      router: 67
+      source_neurons: 8192
       neurons: 2048
-      input_h: 2
-      input_w: 2
+      input_h: 4
+      input_w: 4
       input_channels: 512
       output_h: 2
       output_w: 2
@@ -342,9 +254,9 @@ mapping:
     - id: conv11
       partition: contiguous_physical
       op: conv2d
-      pe: 75
-      core: 2
-      router: 75
+      pe: 68
+      core: 0
+      router: 68
       source_neurons: 2048
       neurons: 2048
       input_h: 2
@@ -363,9 +275,9 @@ mapping:
     - id: conv12
       partition: contiguous_physical
       op: conv2d
-      pe: 76
-      core: 0
-      router: 76
+      pe: 68
+      core: 2
+      router: 68
       source_neurons: 2048
       neurons: 2048
       input_h: 2
@@ -380,40 +292,18 @@ mapping:
       threshold: 1.0
       leak: 1.0
       reset: soft
-      next: pool4
-    - id: pool4
-      partition: contiguous_physical
-      op: avgpool2d
-      pe: 76
-      core: 2
-      router: 76
-      source_neurons: 2048
-      neurons: 512
-      input_h: 2
-      input_w: 2
-      input_channels: 512
-      output_h: 1
-      output_w: 1
-      output_channels: 512
-      aggregate_core_count: 1
-      physical_neuron_order: channel_major
-      weight_prefix: pool4
-      threshold: 1.0
-      leak: 1.0
-      reset: soft
-      channelwise: true
       next: fc1
     - id: fc1
       partition: contiguous_physical
       op: linear
-      pe: 76
-      core: 3
-      router: 76
-      source_neurons: 512
+      pe: 69
+      core: 0
+      router: 69
+      source_neurons: 2048
       neurons: 512
       input_h: 1
       input_w: 1
-      input_channels: 512
+      input_channels: 2048
       output_h: 1
       output_w: 1
       output_channels: 512
@@ -427,9 +317,9 @@ mapping:
     - id: fc2
       partition: contiguous_physical
       op: linear
-      pe: 77
-      core: 0
-      router: 77
+      pe: 69
+      core: 1
+      router: 69
       source_neurons: 512
       neurons: 512
       input_h: 1
@@ -448,9 +338,9 @@ mapping:
     - id: readout
       partition: contiguous_physical
       op: linear
-      pe: 77
-      core: 1
-      router: 77
+      pe: 69
+      core: 2
+      router: 69
       source_neurons: 512
       neurons: 10
       input_h: 1
@@ -471,59 +361,44 @@ mapping:
       to: conv1
       routers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
     - from: conv1
-      to: pool0
-      routers: [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33]
-    - from: pool0
       to: conv2
-      routers: [33, 34, 35, 36, 37]
+      routers: [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33]
     - from: conv2
       to: conv3
-      routers: [37, 38, 39, 40, 41, 42, 43, 44, 45]
+      routers: [33, 34, 35, 36, 37, 38, 39, 40, 41]
     - from: conv3
-      to: pool1
-      routers: [45, 46, 47, 48, 49, 50, 51, 52, 53]
-    - from: pool1
       to: conv4
-      routers: [53, 54, 55]
+      routers: [41, 42, 43, 44, 45, 46, 47, 48, 49]
     - from: conv4
       to: conv5
-      routers: [55, 56, 57, 58, 59]
+      routers: [49, 50, 51, 52, 53]
     - from: conv5
       to: conv6
-      routers: [59, 60, 61, 62, 63]
+      routers: [53, 54, 55, 56, 57]
     - from: conv6
-      to: pool2
-      routers: [63, 64, 65, 66, 67]
-    - from: pool2
       to: conv7
-      routers: [67, 68]
+      routers: [57, 58, 59, 60, 61]
     - from: conv7
       to: conv8
-      routers: [68, 69, 70]
+      routers: [61, 62, 63]
     - from: conv8
       to: conv9
-      routers: [70, 71, 72]
+      routers: [63, 64, 65]
     - from: conv9
-      to: pool3
-      routers: [72, 73, 74]
-    - from: pool3
       to: conv10
-      routers: [74, 75]
+      routers: [65, 66, 67]
     - from: conv10
       to: conv11
-      routers: [75]
+      routers: [67, 68]
     - from: conv11
       to: conv12
-      routers: [75, 76]
+      routers: [68]
     - from: conv12
-      to: pool4
-      routers: [76]
-    - from: pool4
       to: fc1
-      routers: [76]
+      routers: [68, 69]
     - from: fc1
       to: fc2
-      routers: [76, 77]
+      routers: [69]
     - from: fc2
       to: readout
-      routers: [77]
+      routers: [69]

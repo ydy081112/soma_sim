@@ -78,6 +78,22 @@ def add_spatial(arrays: Dict[str, np.ndarray], prefix: str, weight: np.ndarray,
     arrays[f"{prefix}_pattern_weight_offset"] = plan["kernel_index"] * multiplier
 
 
+def fuse_avgpool2x2_into_conv3x3(weight_hwio: np.ndarray) -> np.ndarray:
+    """Compose AvgPool2d(2,2) -> Conv3x3 into Conv6x6(stride=2,padding=2)."""
+    if weight_hwio.ndim != 4 or weight_hwio.shape[:2] != (3, 3):
+        raise ValueError(f"expected HWIO 3x3 convolution, got {weight_hwio.shape}")
+    # 每个原 kernel tap 覆盖 Pool 的四个输入位置；仍只保存规则 kernel，不展开连接。
+    return np.repeat(np.repeat(weight_hwio, 2, axis=0), 2, axis=1) / 4.0
+
+
+def fuse_avgpool2x2_into_dense_spatial_major(weight_io: np.ndarray) -> np.ndarray:
+    """Compose the final 2x2 average pool into SOMA's spatial-major Dense rows."""
+    if weight_io.ndim != 2:
+        raise ValueError(f"expected Dense [Cin,Cout], got {weight_io.shape}")
+    # logical source id 是 spatial * channels + channel；每个 spatial block 复用同一组 FC 行。
+    return np.tile(weight_io, (4, 1)) / 4.0
+
+
 CORES_PER_TILE = 4
 MAX_NEURONS_PER_CORE = 1024
 NOC_ROWS = 128
@@ -128,36 +144,45 @@ def build_assets(source_path: Path, weights_path: Path, mapping_path: Path) -> N
     h = w = 32
     channels = 6
     conv_channels = [64, 64, 128, 128, 256, 256, 256, 512, 512, 512, 512, 512, 512]
-    pools_after = {1, 3, 6, 9, 12}
-    pool_index = 0
+    pool_before_conv = {2, 4, 7, 10}
     for conv_index, output_channels in enumerate(conv_channels):
         prefix = f"conv{conv_index}"
+        weight_hwio = np.asarray(source[f"{prefix}_weight_hwio"])
+        output_h, output_w = h, w
+        kernel = (3, 3)
+        stride = (1, 1)
+        padding = (1, 1)
+        if conv_index in pool_before_conv:
+            weight_hwio = fuse_avgpool2x2_into_conv3x3(weight_hwio)
+            output_h, output_w = h // 2, w // 2
+            kernel = (6, 6)
+            stride = (2, 2)
+            padding = (2, 2)
+
         # Remote export 是 [Kh,Kw,Cin,Cout]；SOMA 热路径要求 [Cin,Kh,Kw,Cout]。
-        ihwo = np.asarray(source[f"{prefix}_weight_hwio"]).transpose(2, 0, 1, 3)
-        add_spatial(arrays, prefix, ihwo, h, w, h, w, (3, 3), (1, 1), (1, 1), output_channels)
+        ihwo = weight_hwio.transpose(2, 0, 1, 3)
+        add_spatial(arrays, prefix, ihwo, h, w, output_h, output_w,
+                    kernel, stride, padding, output_channels)
         arrays[f"{prefix}_bias"] = np.asarray(source[f"{prefix}_bias"], dtype=np.float32)
         layers.append({"id": prefix, "op": "conv2d", "source_neurons": h*w*channels,
-                       "neurons": h*w*output_channels, "input_h": h, "input_w": w,
-                       "input_channels": channels, "output_h": h, "output_w": w,
+                       "neurons": output_h*output_w*output_channels,
+                       "input_h": h, "input_w": w,
+                       "input_channels": channels, "output_h": output_h,
+                       "output_w": output_w,
                        "output_channels": output_channels})
+        h, w = output_h, output_w
         channels = output_channels
-        if conv_index in pools_after:
-            out_h, out_w = h // 2, w // 2
-            pool = f"pool{pool_index}"
-            add_spatial(arrays, pool, np.full(4, 0.25, dtype=np.float32), h, w, out_h, out_w,
-                        (2, 2), (2, 2), (0, 0), channels, channelwise=True)
-            layers.append({"id": pool, "op": "avgpool2d", "source_neurons": h*w*channels,
-                           "neurons": out_h*out_w*channels, "input_h": h, "input_w": w,
-                           "input_channels": channels, "output_h": out_h, "output_w": out_w,
-                           "output_channels": channels, "channelwise": True})
-            h, w = out_h, out_w
-            pool_index += 1
 
     dense_specs = [("fc1", "fc1_weight_io", 512), ("fc2", "fc2_weight_io", 512),
                    ("readout", "readout_weight_io", 10)]
     source_neurons = h * w * channels
     for name, weight_key, output_neurons in dense_specs:
-        arrays[f"{name}_weight"] = np.asarray(source[weight_key], dtype=np.float32)
+        dense_weight = np.asarray(source[weight_key], dtype=np.float32)
+        if name == "fc1":
+            if (h, w) != (2, 2) or dense_weight.shape[0] != channels:
+                raise ValueError("final Pool->FC fusion expects a 2x2 spatial input")
+            dense_weight = fuse_avgpool2x2_into_dense_spatial_major(dense_weight)
+        arrays[f"{name}_weight"] = np.ascontiguousarray(dense_weight, dtype=np.float32)
         arrays[f"{name}_bias"] = np.asarray(source[f"{name}_bias"], dtype=np.float32)
         layers.append({"id": name, "op": "linear", "source_neurons": source_neurons,
                        "neurons": output_neurons, "input_channels": source_neurons,

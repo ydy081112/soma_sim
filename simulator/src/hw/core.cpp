@@ -46,11 +46,15 @@ CoreReceiveResult Core::receive(std::uint64_t source_neuron, float value, std::u
             timestep_pending_[index] = 1;
         });
 
+    // Spatial Pattern 与 source-major Dense 保持各自的可配置 synapse service cost。
+    const auto synapse_hw_latency = mapping_.op == LayerOp::Linear
+                                        ? hardware_.core.dense_synapse_hw_latency
+                                        : hardware_.core.spatial_synapse_hw_latency;
     if (updates > (std::numeric_limits<SimTime>::max() /
-                   std::max<SimTime>(hardware_.core.synapse_hw_latency, 1))) {
+                   std::max<SimTime>(synapse_hw_latency, 1))) {
         throw std::runtime_error(mapping_.id + ": synapse service latency 溢出");
     }
-    const auto synapse_service = updates * hardware_.core.synapse_hw_latency;
+    const auto synapse_service = updates * synapse_hw_latency;
     const auto packet_service = hardware_.core.axon_in_hw_latency +
                                 hardware_.core.sram_read_hw_latency + synapse_service;
     // SANA-FE 的 destination Core 按 packet 串行处理 axon-in 与全部 local synapses。

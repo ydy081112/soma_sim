@@ -117,13 +117,23 @@ HardwareConfig HardwareConfig::load(const std::string& path) {
     config.core.cores_per_pe = static_cast<std::uint32_t>(yaml::get_u64(core, "cores_per_pe", 1));
     config.core.max_neurons = static_cast<std::uint32_t>(yaml::get_u64(core, "max_neurons", 1'024));
     config.core.input_buffer_depth = static_cast<std::uint32_t>(yaml::get_u64(core, "input_buffer_depth", 16));
+    config.core.input_fifo = yaml::get_bool(core, "input_fifo", false);
+    config.core.fifo_per_core = yaml::get_bool(core, "fifo_per_core", false);
+    config.core.fifo_num_per_core = static_cast<std::uint32_t>(
+        yaml::get_u64(core, "fifo_num_per_core", 1));
+    config.core.fifo_depth_per_core = static_cast<std::uint32_t>(
+        yaml::get_u64(core, "fifo_depth_per_core", 1));
     config.core.synapse_sram_bytes = yaml::get_u64(core, "synapse_sram_bytes", 128 * 1024);
     const auto& hw_latency = core.at("hardware_latency");
     config.core.axon_in_hw_latency = hw_latency_field(hw_latency, "axon_in", 0);
     config.core.axon_out_hw_latency = hw_latency_field(hw_latency, "axon_out", 0);
     config.core.sram_read_hw_latency = hw_latency_field(hw_latency, "sram_read", 0);
     config.core.sram_write_hw_latency = hw_latency_field(hw_latency, "sram_write", 0);
-    config.core.synapse_hw_latency = hw_latency_field(hw_latency, "synapse", 0);
+    const auto& synapse_hw_latency = hw_latency.at("synapse");
+    config.core.spatial_synapse_hw_latency = hw_latency_field(
+        synapse_hw_latency, "spatial", 0);
+    config.core.dense_synapse_hw_latency = hw_latency_field(
+        synapse_hw_latency, "dense", 0);
     config.core.soma_access_hw_latency = hw_latency_field(hw_latency, "soma_access", 0);
     config.core.soma_update_hw_latency = hw_latency_field(hw_latency, "soma_update", 0);
     config.core.soma_fire_hw_latency = hw_latency_field(hw_latency, "soma_fire", 0);
@@ -169,6 +179,13 @@ void HardwareConfig::validate() const {
     }
     if (core.pe_count == 0 || core.max_neurons == 0 || core.cores_per_pe == 0) {
         throw std::runtime_error("PE/Core 容量必须为正");
+    }
+    if (core.input_fifo && !core.fifo_per_core) {
+        throw std::runtime_error("当前 input FIFO 时序要求 fifo_per_core: true");
+    }
+    if (core.input_fifo &&
+        (core.fifo_num_per_core == 0 || core.fifo_depth_per_core == 0)) {
+        throw std::runtime_error("每 Core 的 FIFO 数量和深度必须为正");
     }
     if (core.default_threshold <= 0.0F) throw std::runtime_error("默认 threshold 必须为正");
     if (timestep_synchronization() && noc.timestep_sync_hw_latency.empty()) {

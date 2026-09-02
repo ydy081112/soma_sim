@@ -67,6 +67,13 @@ int main(int argc, char** argv) {
                 "NoC hardware latency schema");
         require(hardware.core.axon_in_hw_latency == 16000,
                 "Core hardware latency schema");
+        require(hardware.core.input_fifo && hardware.core.fifo_per_core &&
+                    hardware.core.fifo_num_per_core == 1 &&
+                    hardware.core.fifo_depth_per_core == 16,
+                "per-Core input FIFO schema");
+        require(hardware.core.spatial_synapse_hw_latency == 3100 &&
+                    hardware.core.dense_synapse_hw_latency == 3800,
+                "spatial and dense synapse latency schema");
         require(hardware.core.soma_access_hw_latency == 6000 &&
                     hardware.core.soma_update_hw_latency == 3700,
                 "soma access and update latency schema");
@@ -74,6 +81,37 @@ int main(int argc, char** argv) {
                 "timestep synchronization latency table");
         const auto mapping = soma::MappingConfig::load(root + "/compiler/mapping_output/mapping.yaml");
         mapping.validate(static_cast<std::uint32_t>(hardware.noc.router_count()));
+        const auto vgg_mapping = soma::MappingConfig::load(
+            root + "/compiler/mapping_output/vgg16_mapping.yaml");
+        std::uint64_t vgg_physical_cores = 0;
+        for (const auto& layer : vgg_mapping.layers) {
+            require(layer.op != soma::LayerOp::AvgPool2d,
+                    "VGG Pool is fused instead of mapped as a firing layer");
+            vgg_physical_cores +=
+                (layer.neurons + hardware.core.max_neurons - 1) /
+                hardware.core.max_neurons;
+        }
+        require(vgg_physical_cores == 279 && vgg_mapping.layer("conv2").pe == 33 &&
+                    vgg_mapping.layer("conv2").core == 2 &&
+                    vgg_mapping.layer("fc1").source_neurons == 2048,
+                "fused VGG graph uses the SANA-FE 279-Core placement");
+        const std::vector<std::string> expected_vgg_layers = {
+            "input", "conv0", "conv1", "conv2", "conv3", "conv4", "conv5",
+            "conv6", "conv7", "conv8", "conv9", "conv10", "conv11", "conv12",
+            "fc1", "fc2", "readout"};
+        const std::vector<std::uint32_t> expected_vgg_core_starts = {
+            0, 6, 70, 134, 166, 198, 214, 230, 246, 254, 262, 270, 272, 274,
+            276, 277, 278};
+        for (std::size_t index = 0; index < expected_vgg_layers.size(); ++index) {
+            const auto& layer = vgg_mapping.layer(expected_vgg_layers[index]);
+            const auto global_core = layer.pe * hardware.core.cores_per_pe + layer.core;
+            const auto expected_end = index + 1 < expected_vgg_core_starts.size()
+                                          ? expected_vgg_core_starts[index + 1]
+                                          : 279U;
+            require(global_core == expected_vgg_core_starts[index] &&
+                        layer.aggregate_core_count == expected_end - global_core,
+                    "every fused VGG layer preserves the reference physical-Core range");
+        }
         soma::RouterResourceTable routers(hardware);
         const auto& route = mapping.route("input", "conv0");
         const auto a = routers.traverse(0, route);
@@ -88,6 +126,12 @@ int main(int argc, char** argv) {
         const auto physical_route = routers.traverse(0, 0, 69);
         require(physical_route.hops == 69,
                 "physical Tile endpoints produce a multi-hop XY route");
+        soma::RouterResourceTable fifo_routers(hardware);
+        fifo_routers.traverse(0, 0, 1, 0);
+        fifo_routers.record_destination_processing(100'000, 10'000);
+        fifo_routers.traverse(0, 0, 1, 1);
+        // Core 1 可以早于 Core 0 释放；两者不应被误建模成同一个 FIFO。
+        fifo_routers.record_destination_processing(50'000, 10'000);
 
         const auto input = soma::load_input_spikes_csv(root + "/input/input_spike.csv");
         require(input.last_timestep == 2, "input logical timestep range");
@@ -138,7 +182,8 @@ int main(int argc, char** argv) {
         direct_weights.op = soma::LayerOp::Linear;
         direct_weights.dense_weight = {2.5F, 0.0F, 1.5F};
         soma::HardwareConfig direct_hardware;
-        direct_hardware.core.synapse_hw_latency = 5;
+        direct_hardware.core.dense_synapse_hw_latency = 5;
+        direct_hardware.core.spatial_synapse_hw_latency = 7;
         direct_hardware.core.soma_access_hw_latency = 6;
         direct_hardware.core.soma_update_hw_latency = 4;
         direct_hardware.core.soma_fire_hw_latency = 7;
@@ -194,6 +239,13 @@ int main(int argc, char** argv) {
                     std::abs(first_partition_updates[0] - 2.0F) < 1e-6F &&
                     std::abs(second_partition_updates[1] - 3.0F) < 1e-6F,
                 "channel-major packets apply only destination-Core-local synaptic updates");
+        soma::Core spatial_core(partitioned_mapping, direct_hardware, partitioned_weights,
+                                soma::PhysicalCoreAddress{}, 0, 1024);
+        const auto spatial_accumulation = spatial_core.receive(0, 1.0F, 1, 200);
+        require(spatial_accumulation.synaptic_updates == 1 &&
+                    spatial_accumulation.hw_synapse_service_latency == 7 &&
+                    spatial_accumulation.hw_finish_time == 207,
+                "spatial Core selects spatial synapse latency");
 
         soma::LayerMapping full_core_mapping;
         full_core_mapping.id = "full_core";

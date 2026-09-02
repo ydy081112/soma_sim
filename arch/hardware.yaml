@@ -46,13 +46,20 @@ architecture:
     cores_per_pe: 4
     max_neurons: 1024
     input_buffer_depth: 16
+    # 目的端输入采用每个 physical Core 独立的有限深度 FIFO。
+    input_fifo: true
+    fifo_per_core: true
+    fifo_num_per_core: 1
+    fifo_depth_per_core: 16
     synapse_sram_bytes: 131072
     hardware_latency:
       axon_in: 16.0 ns
       axon_out: 5.1 ns
       sram_read: 0 ps
       sram_write: 0 ps
-      synapse: 3.1 ns
+      synapse:
+        spatial: 3.1 ns
+        dense: 3.8 ns
       soma_access: 6.0 ns
       soma_update: 3.7 ns
       soma_fire: 30.0 ns

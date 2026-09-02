@@ -12,23 +12,26 @@
 
 - Queue drained: yes
 - Input spikes: 219,843
-- Emitted logical spikes: 5,176,445
-- Hardware latency: 0.5678836707 s（含每步 1.8 us synchronization）
-- SANA-FE hardware latency: 0.5664435778 s；SOMA 相对误差 `+0.2542%`
-- Host latency: 206.031 s on the current host
-- 已保存的 SANA-FE host simulation-call 合计为 2140.541 s；当前观测中 SOMA 少用 1934.510 s（`90.3748%`），即 `10.3894x` 快
-- Peak RSS including compressed/uncompressed weights and packet queue: about 203 MiB
-- Physical mapping: 310 cores / 78 tiles（当前 SOMA 图仍保留 5 个显式 AvgPool）
-- Packets / NoC hops / synaptic updates: 146,488,599 / 1,813,376,089 / 3,569,567,135
+- Emitted logical spikes: 4,770,334
+- Hardware latency: 0.638970424703 s（含每步 1.8 us synchronization）
+- SANA-FE hardware latency: 0.566443577764 s；SOMA 相对误差 `+12.8039%`
+- 平均每 timestep hardware latency: SOMA `2495.978221 us`，SANA-FE `2212.670226 us`
+- Dynamic event energy: SOMA `163.709593412 mJ`，SANA-FE `159.962050174 mJ`，相对误差 `+2.3428%`
+- 平均每 timestep energy: SOMA `639.490599 uJ`，SANA-FE `624.851758 uJ`
+- Host latency: 330.478 s on the current host；该 wall-clock 数值不参与 hardware latency
+- Physical mapping: 279 cores / 70 tiles；5 个 AvgPool 均已融合，无独立 Pool stage
+- Packets / NoC hops / synaptic updates: 177,386,828 / 2,210,196,692 / 5,385,396,144
+- Spatial / Dense synaptic updates: 5,354,148,864 / 31,247,280；分别按 3.1 ns / 3.8 ns 计费
+- Timestep 1 hardware latency: 11,732,800 ps
 - SOMA output prediction / label: `3 / 3`
 - Preserved SANA-FE reference prediction: `3`
-- Output-score cosine similarity to SANA-FE reference: `0.9996368`
+- Output-score cosine similarity to SANA-FE reference: `0.9998356`
 
 SOMA scores:
 
 ```text
-[-275.4394, -1113.5419, -144.1083, 2486.1082, -207.3201,
-  177.1038,   -19.6900, -215.5919, -388.3068, -299.6349]
+[-289.3839, -1152.2512, -137.1532, 2556.1306, -227.8952,
+  151.4852,    -1.8354, -185.4681, -419.7989, -294.2643]
 ```
 
 SANA-FE reference scores:
@@ -38,4 +41,4 @@ SANA-FE reference scores:
   149.9703,   -27.2136, -156.7256, -390.7198, -267.2784]
 ```
 
-两者分类一致，score cosine 为 `0.9996368`，但不能把接近的 score 当作逐值相等。当前 SOMA 图保留显式 AvgPool，而 SANA-FE benchmark 将 pooling 融合进后续 Conv/FC。Host 对比也不是严格同机 benchmark：SOMA 数据来自本机 i7-11700，SANA-FE 数据来自远程 Xeon Platinum 8352S，且 SANA-FE 使用 256 次 `chip.sim(1)` 与 `perf_trace=True`。因此 `10.3894x` 只是当前端到端观测差，不能单独归因于 CPU 或 simulator 实现。
+两者分类一致，score cosine 为 `0.9998356`，但不能把接近的 score 当作逐值相等。Pool-fused 图、physical placement 和紧凑 connectivity 已对齐；当前 packets/hops/updates 仍比 SANA-FE 高约 2.6%–3.0%，量化与 threshold 边界按本轮要求暂未调整，逐 timestep hardware latency 也仍受现有 NoC contention 模型差异影响。当前 latency 使用 YAML 驱动的 destination-router/per-Core input FIFO 回压；前 64 步总量与先前保存的 `Destination-router 4 queues` 候选精确一致。
