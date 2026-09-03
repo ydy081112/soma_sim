@@ -18,8 +18,33 @@ WeightStore WeightStore::load(const std::string& path, const MappingConfig& mapp
         weights.bias = archive.find(prefix + "_bias") == nullptr
                            ? std::vector<float>{}
                            : archive.at(prefix + "_bias").as_f32();
-        if (!weights.bias.empty() && weights.bias.size() != layer.output_channels) {
+        if (!weights.bias.empty() && weights.bias.size() != layer.output_channels &&
+            weights.bias.size() != layer.neurons) {
             throw std::runtime_error(layer.id + ": bias shape 不匹配");
+        }
+        if (layer.op == LayerOp::Crossbar) {
+            weights.threshold = archive.at(prefix + "_threshold").as_f32();
+            weights.active_neuron = archive.at(prefix + "_active").as_u8();
+            weights.crossbar_axon_type = archive.at(prefix + "_axon_type").as_u8();
+            weights.crossbar_neuron_weight = archive.at(prefix + "_neuron_weight").as_i16();
+            weights.crossbar_rows = archive.at(prefix + "_crossbar_rows").as_u64();
+            if (weights.threshold.size() != layer.neurons ||
+                weights.active_neuron.size() != layer.neurons ||
+                weights.crossbar_neuron_weight.size() != layer.neurons * 4) {
+                throw std::runtime_error(layer.id + ": crossbar neuron array shape 不匹配");
+            }
+            const auto cores = layer.aggregate_core_count;
+            if (cores == 0 || weights.crossbar_axon_type.size() % cores != 0) {
+                throw std::runtime_error(layer.id + ": crossbar axon type shape 不匹配");
+            }
+            weights.crossbar_axons = static_cast<std::uint32_t>(
+                weights.crossbar_axon_type.size() / cores);
+            const auto row_count = static_cast<std::size_t>(cores) * weights.crossbar_axons;
+            if (row_count == 0 || weights.crossbar_rows.size() % row_count != 0) {
+                throw std::runtime_error(layer.id + ": crossbar row shape 不匹配");
+            }
+            weights.crossbar_words_per_axon = static_cast<std::uint32_t>(
+                weights.crossbar_rows.size() / row_count);
         }
         store.layers_.emplace(layer.id, std::move(weights));
     }
@@ -33,7 +58,17 @@ WeightStore WeightStore::load(const std::string& path, const MappingConfig& mapp
         weights.hardware_type = connection.hardware_type;
         weights.source_neurons = source.neurons;
         const auto& prefix = connection.weight_prefix;
-        if (connection.type == ConnectionType::Dense) {
+        if (connection.type == ConnectionType::Crossbar) {
+            weights.route_destination_partition = archive.at(
+                prefix + "_route_destination_partition").as_i32();
+            weights.route_destination_axon = archive.at(
+                prefix + "_route_destination_axon").as_u16();
+            if (weights.route_destination_partition.size() != source.neurons ||
+                weights.route_destination_axon.size() != source.neurons) {
+                throw std::runtime_error(connection.from + " -> " + connection.to +
+                                         ": crossbar route shape 不匹配");
+            }
+        } else if (connection.type == ConnectionType::Dense) {
             // Linear 按 [Cin,Cout] 保存，固定 source 后整段 Cout 连续。
             const auto& array = archive.at(prefix + "_weight");
             weights.dense_weight = array.as_f32();

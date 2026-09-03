@@ -118,6 +118,9 @@ HardwareConfig HardwareConfig::load(const std::string& path) {
     config.core.pe_count = static_cast<std::uint32_t>(yaml::get_u64(core, "pe_count", 1));
     config.core.cores_per_pe = static_cast<std::uint32_t>(yaml::get_u64(core, "cores_per_pe", 1));
     config.core.max_neurons = static_cast<std::uint32_t>(yaml::get_u64(core, "max_neurons", 1'024));
+    config.core.max_axons = static_cast<std::uint32_t>(yaml::get_u64(core, "max_axons", config.core.max_neurons));
+    config.core.cores_per_tile = static_cast<std::uint32_t>(yaml::get_u64(core, "cores_per_tile", config.core.cores_per_pe));
+    config.core.cores_per_chip = static_cast<std::uint32_t>(yaml::get_u64(core, "cores_per_chip", 4'096));
     config.core.input_buffer_depth = static_cast<std::uint32_t>(yaml::get_u64(core, "input_buffer_depth", 16));
     config.core.input_fifo = yaml::get_bool(core, "input_fifo", false);
     config.core.fifo_per_core = yaml::get_bool(core, "fifo_per_core", false);
@@ -139,6 +142,8 @@ HardwareConfig HardwareConfig::load(const std::string& path) {
         synapse_hw_latency, "dense", 0);
     config.core.identity_synapse_hw_latency = hw_latency_field(
         synapse_hw_latency, "identity", config.core.spatial_synapse_hw_latency);
+    config.core.crossbar_synapse_hw_latency = hw_latency_field(
+        synapse_hw_latency, "crossbar", config.core.spatial_synapse_hw_latency);
     config.core.soma_access_hw_latency = hw_latency_field(hw_latency, "soma_access", 0);
     config.core.soma_update_hw_latency = hw_latency_field(hw_latency, "soma_update", 0);
     config.core.soma_fire_hw_latency = hw_latency_field(hw_latency, "soma_fire", 0);
@@ -146,6 +151,26 @@ HardwareConfig HardwareConfig::load(const std::string& path) {
     config.core.default_threshold = static_cast<float>(yaml::get_double(neuron, "threshold", 1.0));
     config.core.default_leak = static_cast<float>(yaml::get_double(neuron, "leak", 1.0));
     config.core.reset = yaml::get_string(neuron, "reset", "soft");
+    config.core.neuron_update_mode = yaml::get_string(neuron, "update_mode", "all_mapped");
+    config.core.crossbar_weight_mode = yaml::get_string(
+        neuron, "crossbar_weight_mode", "signed");
+    config.core.threshold_compare_mode = yaml::get_string(
+        neuron, "threshold_compare_mode", "signed");
+    config.core.crossbar_packet_activates_all_neurons = yaml::get_bool(
+        neuron, "crossbar_packet_activates_all_neurons", false);
+    config.core.process_inactive_neurons_on_crossbar_event = yaml::get_bool(
+        neuron, "process_inactive_neurons_on_crossbar_event", false);
+    config.core.membrane_min = static_cast<float>(yaml::get_double(
+        neuron, "membrane_min", -std::numeric_limits<double>::infinity()));
+    config.core.membrane_max = static_cast<float>(yaml::get_double(
+        neuron, "membrane_max", std::numeric_limits<double>::infinity()));
+    config.core.fire_on_positive_saturation = yaml::get_bool(
+        neuron, "fire_on_positive_saturation", false);
+
+    const auto& statistics = optional_map(architecture, "statistics");
+    config.statistics.firing_timestep_offset = static_cast<std::uint32_t>(
+        yaml::get_u64(statistics, "firing_timestep_offset", 0));
+    config.statistics.firing_trace = yaml::get_bool(statistics, "firing_trace", false);
 
     const auto& energy = architecture.at("energy_pj");
     config.energy.router_hop_pj = yaml::get_double(energy, "router_hop", 0.0);
@@ -166,6 +191,8 @@ HardwareConfig HardwareConfig::load(const std::string& path) {
         energy, "synapse_dense", config.energy.synapse_pj);
     config.energy.identity_synapse_pj = yaml::get_double(
         energy, "synapse_identity", config.energy.synapse_pj);
+    config.energy.crossbar_synapse_pj = yaml::get_double(
+        energy, "synapse_crossbar", config.energy.synapse_pj);
     config.energy.soma_update_pj = yaml::get_double(energy, "soma_update", 0.0);
     config.energy.soma_fire_pj = yaml::get_double(energy, "soma_fire", 0.0);
     config.validate();
@@ -193,7 +220,8 @@ void HardwareConfig::validate() const {
     if (noc.send_req != noc.receive_ack) {
         throw std::runtime_error("异步 link 必须同时配置 send.req 与 receive.ack");
     }
-    if (core.pe_count == 0 || core.max_neurons == 0 || core.cores_per_pe == 0) {
+    if (core.pe_count == 0 || core.max_neurons == 0 || core.max_axons == 0 ||
+        core.cores_per_pe == 0 || core.cores_per_tile == 0 || core.cores_per_chip == 0) {
         throw std::runtime_error("PE/Core 容量必须为正");
     }
     if (core.input_fifo && !core.fifo_per_core) {
@@ -212,6 +240,28 @@ void HardwareConfig::validate() const {
         throw std::runtime_error("source_packet_fifo 当前仅与 route_density 配合使用");
     }
     if (core.default_threshold <= 0.0F) throw std::runtime_error("默认 threshold 必须为正");
+    if (core.neuron_update_mode != "all_mapped" &&
+        core.neuron_update_mode != "event_activated_catch_up") {
+        throw std::runtime_error("不支持的 neuron update_mode: " + core.neuron_update_mode);
+    }
+    if (core.crossbar_weight_mode != "signed" &&
+        core.crossbar_weight_mode != "nonzero_binary") {
+        throw std::runtime_error(
+            "不支持的 crossbar_weight_mode: " + core.crossbar_weight_mode);
+    }
+    if (core.threshold_compare_mode != "signed" &&
+        core.threshold_compare_mode != "unsigned_promotion") {
+        throw std::runtime_error(
+            "不支持的 threshold_compare_mode: " + core.threshold_compare_mode);
+    }
+    if (core.process_inactive_neurons_on_crossbar_event &&
+        !core.crossbar_packet_activates_all_neurons) {
+        throw std::runtime_error(
+            "处理 inactive crossbar neuron 要求 packet 激活整 Core");
+    }
+    if (!(core.membrane_min < core.membrane_max)) {
+        throw std::runtime_error("membrane_min 必须小于 membrane_max");
+    }
     if (timestep_synchronization() && noc.timestep_sync_hw_latency.empty()) {
         throw std::runtime_error("timestep synchronization 缺少 hardware latency table");
     }

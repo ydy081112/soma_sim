@@ -78,6 +78,24 @@ void Statistics::record_emit(std::size_t layer, std::uint32_t step, SimTime hw_c
     hw_latency_ = std::max(hw_latency_, hw_current_time);
 }
 
+void Statistics::record_neuron_fire(std::size_t layer, std::uint32_t step,
+                                    SimTime hw_current_time, std::uint32_t global_core,
+                                    std::uint32_t local_neuron) {
+    record_emit(layer, step, hw_current_time);
+    ++neuron_firings_;
+    const auto reported_step = static_cast<std::size_t>(step) +
+                               hardware_.statistics.firing_timestep_offset;
+    if (reported_neuron_firings_.size() <= reported_step) {
+        reported_neuron_firings_.resize(reported_step + 1, 0);
+    }
+    ++reported_neuron_firings_[reported_step];
+    if (hardware_.statistics.firing_trace) {
+        firing_trace_.push_back(FiringTraceRecord{
+            static_cast<std::uint32_t>(reported_step), global_core, local_neuron});
+    }
+    ++timestep(step).neuron_firings;
+}
+
 void Statistics::record_neuron_processing(std::size_t layer, std::uint32_t step,
                                           SimTime hw_current_time) {
     static_cast<void>(layer);
@@ -133,7 +151,9 @@ void Statistics::add_data_energy(const NocTiming& noc, std::uint64_t updates,
                        static_cast<double>(noc.port_hops[static_cast<std::size_t>(Port::West)]) * hardware_.energy.west_link_pj;
     energy_.memory_pj += hardware_.energy.sram_read_pj +
                          static_cast<double>(updates) * hardware_.energy.sram_write_pj;
-    const auto synapse_pj = connection_type == ConnectionType::Dense
+    const auto synapse_pj = connection_type == ConnectionType::Crossbar
+                                ? hardware_.energy.crossbar_synapse_pj
+                            : connection_type == ConnectionType::Dense
                                 ? hardware_.energy.dense_synapse_pj
                             : connection_type == ConnectionType::Identity
                                 ? hardware_.energy.identity_synapse_pj
@@ -165,6 +185,7 @@ void Statistics::write(const std::string& output_dir, const std::vector<float>& 
             << "  \"mapped_tile_count\": " << mapped_tile_count_ << ",\n"
             << "  \"total_spikes\": " << processed_spikes_ << ",\n"
             << "  \"total_emitted_spikes\": " << emitted_spikes_ << ",\n"
+            << "  \"total_neuron_firings\": " << neuron_firings_ << ",\n"
             << "  \"packets\": " << packets_ << ",\n"
             << "  \"noc_hops\": " << noc_hops_ << ",\n"
             << "  \"synaptic_updates\": " << synaptic_updates_ << ",\n"
@@ -241,6 +262,22 @@ void Statistics::write(const std::string& output_dir, const std::vector<float>& 
                      << ceil_cycles(metric.noc_traversal_hw_latency, hardware_.hw_cycle_time_ps) << ','
                      << ceil_cycles(metric.noc_congestion_hw_latency, hardware_.hw_cycle_time_ps) << ','
                      << ceil_cycles(metric.synchronization_hw_latency, hardware_.hw_cycle_time_ps) << '\n';
+    }
+
+    std::ofstream firing_csv(std::filesystem::path(output_dir) / "firing_metrics.csv");
+    firing_csv << "timestep,firing_events,fired_neurons\n";
+    // 当前同步 neuron phase 对每个 physical neuron 每 timestep 最多调用一次 firing。
+    for (std::size_t i = first_timestep; i < reported_neuron_firings_.size(); ++i) {
+        firing_csv << i << ',' << reported_neuron_firings_[i] << ','
+                   << reported_neuron_firings_[i] << '\n';
+    }
+    if (hardware_.statistics.firing_trace) {
+        std::ofstream firing_trace_csv(std::filesystem::path(output_dir) / "firing_trace.csv");
+        firing_trace_csv << "timestep,core,local_neuron\n";
+        for (const auto& record : firing_trace_) {
+            firing_trace_csv << record.timestep << ',' << record.core << ','
+                             << record.local_neuron << '\n';
+        }
     }
 }
 

@@ -1,0 +1,21 @@
+cmake_minimum_required(VERSION 3.20)
+project(MLIRSOMA LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+
+find_package(MLIR REQUIRED CONFIG)
+list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}" "${LLVM_CMAKE_DIR}")
+include(TableGen)
+include(AddLLVM)
+include(AddMLIR)
+include(HandleLLVMOptions)
+include_directories(${LLVM_INCLUDE_DIRS} ${MLIR_INCLUDE_DIRS})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_BINARY_DIR}/include)
+
+add_subdirectory(include/SNN)
+add_subdirectory(include/SNNOp)
+add_subdirectory(lib/SNN)
+add_subdirectory(lib/SNNOp)
+add_subdirectory(tools/soma-opt)

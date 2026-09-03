@@ -36,8 +36,11 @@ Simulator::Simulator(SimulatorOptions options)
     std::uint64_t physical_core_count = 0;
     for (const auto& layer : mapping_.layers) {
         auto& runtime = layer_runtime_.at(layer.index);
-        const auto partition_count = static_cast<std::uint32_t>(
-            (layer.neurons + hardware_.core.max_neurons - 1) / hardware_.core.max_neurons);
+        const auto partition_count = layer.direct_input
+            ? 0U
+            : static_cast<std::uint32_t>(
+                  (layer.neurons + hardware_.core.max_neurons - 1) /
+                  hardware_.core.max_neurons);
         if (layer.aggregate_core_count != 0 && layer.aggregate_core_count != partition_count) {
             throw std::runtime_error(layer.id + ": aggregate_core_count 与 max_neurons 分区不一致");
         }
@@ -130,7 +133,8 @@ void Simulator::process_neurons(std::uint32_t timestep, SimTime hw_start_time) {
 void Simulator::push_firings(std::size_t layer_index, std::uint32_t timestep,
                              const std::vector<CoreFiringResult>& firings) {
     for (const auto& firing : firings) {
-        stats_.record_emit(layer_index, timestep, firing.hw_finish_time);
+        stats_.record_neuron_fire(layer_index, timestep, firing.hw_finish_time,
+                                  firing.global_core, firing.local_neuron);
         stats_.add_fire_energy();
         if (mapping_.outgoing(layer_index).empty()) continue;
         enqueue_packets(layer_index, firing.fired.neuron, firing.fired.value, timestep,
@@ -150,17 +154,25 @@ void Simulator::enqueue_packets(std::size_t source_layer, std::uint64_t source_n
                                 float value, std::uint32_t timestep,
                                 SimTime generated_time, SimTime current_time,
                                 std::uint64_t spike_id) {
-    const auto source_address = source_core_address(source_layer, source_neuron);
+    const auto& source_mapping = mapping_.layer(source_layer);
+    const bool direct_input = source_mapping.direct_input;
+    const auto mapped_source_address = direct_input
+                                           ? PhysicalCoreAddress{}
+                                           : source_core_address(source_layer, source_neuron);
     for (const auto connection_index : mapping_.outgoing(source_layer)) {
         const auto& connection = mapping_.connections.at(connection_index);
         const auto target_index = mapping_.index_of(connection.to);
         const auto& target = mapping_.layer(target_index);
         const auto& connection_weights = weights_.connection(connection_index);
-        SynapseEngine::for_each_destination_partition(
+        SynapseEngine::for_each_destination_packet(
             connection_weights, source_neuron, target, hardware_.core.max_neurons,
-            [&](std::uint32_t destination_partition) {
+            [&](std::uint32_t destination_partition, std::uint32_t destination_axon) {
+            const auto destination_address =
+                layer_runtime_.at(target_index).addresses.at(destination_partition);
+            // direct input 表示 trace 已由 mapping 定位到目标 axon，不额外占用虚拟 source Core。
+            const auto source_address = direct_input ? destination_address : mapped_source_address;
             Spike packet;
-            if (hardware_.core.source_packet_fifo) {
+            if (hardware_.core.source_packet_fifo && !direct_input) {
                 const auto injection = axon_out_resources_.at(source_address.global_core).reserve(
                     current_time, hardware_.core.axon_out_hw_latency);
                 stats_.add_inject_hw_latency(
@@ -180,8 +192,9 @@ void Simulator::enqueue_packets(std::size_t source_layer, std::uint64_t source_n
             packet.destination_layer = target_index;
             packet.connection = connection_index;
             packet.destination_partition = destination_partition;
+            packet.destination_axon = destination_axon;
             packet.value = value;
-            if (hardware_.core.source_packet_fifo) stage_source_packet(std::move(packet));
+            if (hardware_.core.source_packet_fifo && !direct_input) stage_source_packet(std::move(packet));
             else queue_.push(std::move(packet));
         });
     }
@@ -219,7 +232,8 @@ void Simulator::process_data(Spike& spike) {
     const auto& destination = target_runtime.addresses.at(spike.destination_partition);
     const auto source = tile_layout_.core_address(spike.source_physical_core);
 
-    if (!hardware_.core.source_packet_fifo) {
+    const bool direct_input = mapping_.layer(spike.source_layer).direct_input;
+    if (!hardware_.core.source_packet_fifo && !direct_input) {
         // 既有路径：packet 出队时占用 source Core 的 axon-out。
         const auto injection = axon_out_resources_.at(source.global_core).reserve(
             spike.current_time, hardware_.core.axon_out_hw_latency);
@@ -229,13 +243,18 @@ void Simulator::process_data(Spike& spike) {
     }
 
     // noc
-    const auto noc = hardware_.core.source_packet_fifo
-        ? routers_.traverse(spike.current_time, source.router,
-                            source.core_within_tile, destination.router,
-                            destination.core_within_tile)
-        : routers_.traverse(spike.current_time, source.router,
-                            destination.router, destination.core_within_tile);
-    if (hardware_.core.source_packet_fifo) {
+    NocTiming noc;
+    if (!direct_input) {
+        noc = hardware_.core.source_packet_fifo
+            ? routers_.traverse(spike.current_time, source.router,
+                                source.core_within_tile, destination.router,
+                                destination.core_within_tile)
+            : routers_.traverse(spike.current_time, source.router,
+                                destination.router, destination.core_within_tile);
+    } else {
+        noc.hw_arrival_time = spike.current_time;
+    }
+    if (hardware_.core.source_packet_fifo && !direct_input) {
         source_blocking_offsets_.at(source.global_core) += noc.hw_source_blocking_latency;
     }
     stats_.add_noc_hw_latency(spike.timestep, noc);
@@ -246,7 +265,7 @@ void Simulator::process_data(Spike& spike) {
     const auto& connection = mapping_.connections.at(spike.connection);
     const auto receive = core.receive(spike.source_neuron, spike.value, spike.timestep,
                                       spike.current_time, &weights_.connection(spike.connection),
-                                      connection.delay);
+                                      connection.delay, spike.destination_axon);
     spike.current_time = receive.hw_finish_time;
     const auto receive_service = receive.hw_axon_in_service_latency +
                                  receive.hw_synapse_service_latency;
@@ -258,7 +277,7 @@ void Simulator::process_data(Spike& spike) {
     stats_.add_data_energy(noc, receive.synaptic_updates, connection.hardware_type);
     stats_.record_packet(target_index, spike.timestep, receive.synaptic_updates,
                          noc, receive.hw_finish_time);
-    if (hardware_.core.source_packet_fifo) {
+    if (hardware_.core.source_packet_fifo && !direct_input) {
         release_next_source_packet(source.global_core);
     }
 }
@@ -268,14 +287,25 @@ std::vector<float> Simulator::final_scores() const {
     for (std::size_t i = mapping_.layers.size(); i > 0; --i) {
         const auto& layer = mapping_.layers[i - 1];
         if (layer.op != LayerOp::Input &&
-            (layer.readout || mapping_.outgoing(i - 1).empty())) {
-            std::vector<float> scores(static_cast<std::size_t>(layer.neurons), 0.0F);
+            (layer.readout || layer.readout_neuron_count != 0 ||
+             mapping_.outgoing(i - 1).empty())) {
+            const auto score_count = layer.readout_neuron_count == 0
+                                         ? layer.neurons
+                                         : layer.readout_neuron_count;
+            std::vector<float> scores(static_cast<std::size_t>(score_count), 0.0F);
             for (const auto& core : layer_runtime_.at(i - 1).cores) {
                 const auto& local_scores = core->output_scores();
+                const auto& local_firings = core->output_fire_counts();
                 for (std::size_t local = 0; local < local_scores.size(); ++local) {
                     const auto physical = core->physical_neuron_begin() + local;
                     const auto logical = layer.logical_neuron_index(physical);
-                    scores.at(static_cast<std::size_t>(logical)) = local_scores[local];
+                    if (layer.readout_neuron_count == 0) {
+                        scores.at(static_cast<std::size_t>(logical)) = local_scores[local];
+                    } else if (logical >= layer.readout_neuron_begin &&
+                               logical < layer.readout_neuron_begin + layer.readout_neuron_count) {
+                        scores.at(static_cast<std::size_t>(logical - layer.readout_neuron_begin)) =
+                            static_cast<float>(local_firings[local]);
+                    }
                 }
             }
             return scores;

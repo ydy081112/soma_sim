@@ -24,6 +24,7 @@ struct LayerStats {
 struct TimestepStats {
     std::uint64_t processed_spikes = 0;
     std::uint64_t emitted_spikes = 0;
+    std::uint64_t neuron_firings = 0;
     std::uint64_t packets = 0;
     std::uint64_t noc_hops = 0;
     std::uint64_t synaptic_updates = 0;
@@ -59,6 +60,12 @@ struct EnergyStats {
     double total_pj() const { return axon_pj + router_pj + link_pj + memory_pj + synapse_pj + soma_pj; }
 };
 
+struct FiringTraceRecord {
+    std::uint32_t timestep = 0;
+    std::uint32_t core = 0;
+    std::uint32_t local_neuron = 0;
+};
+
 class Statistics {
 public:
     // host latency 衡量模拟器运行性能，hardware latency 衡量被模拟架构性能。
@@ -71,6 +78,9 @@ public:
     void record_packet(std::size_t layer, std::uint32_t timestep, std::uint64_t updates,
                        const NocTiming& noc, SimTime hw_current_time);
     void record_emit(std::size_t layer, std::uint32_t timestep, SimTime hw_current_time);
+    void record_neuron_fire(std::size_t layer, std::uint32_t timestep,
+                            SimTime hw_current_time, std::uint32_t global_core,
+                            std::uint32_t local_neuron);
     void record_neuron_processing(std::size_t layer, std::uint32_t timestep,
                                   SimTime hw_current_time);
     void record_host_latency(std::size_t layer, std::uint32_t timestep, double host_latency_s);
@@ -104,6 +114,9 @@ private:
     SimTime hw_latency_ = 0;
     std::uint64_t processed_spikes_ = 0;
     std::uint64_t emitted_spikes_ = 0;
+    std::uint64_t neuron_firings_ = 0;
+    std::vector<std::uint64_t> reported_neuron_firings_;
+    std::vector<FiringTraceRecord> firing_trace_;
     std::uint64_t packets_ = 0;
     std::uint64_t noc_hops_ = 0;
     std::uint64_t synaptic_updates_ = 0;

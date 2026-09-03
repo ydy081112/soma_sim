@@ -16,6 +16,8 @@ namespace soma {
 struct CoreFiringResult {
     FiredNeuron fired;
     SimTime hw_finish_time = 0;
+    std::uint32_t global_core = 0;
+    std::uint32_t local_neuron = 0;
 };
 
 struct CoreReceiveResult {
@@ -46,9 +48,11 @@ public:
     CoreReceiveResult receive(std::uint64_t source_neuron, float value, std::uint32_t timestep,
                               SimTime hw_arrival_time,
                               const LayerWeights* connection_weights = nullptr,
-                              std::uint32_t connection_delay = 0);
+                              std::uint32_t connection_delay = 0,
+                              std::uint32_t destination_axon = 0);
     CoreNeuronProcessResult process_timestep(std::uint32_t timestep, SimTime hw_arrival_time);
     const std::vector<float>& output_scores() const { return soma_.voltage(); }
+    const std::vector<std::uint32_t>& output_fire_counts() const { return soma_.fire_count(); }
     const PhysicalCoreAddress& address() const { return address_; }
     std::uint64_t physical_neuron_begin() const { return physical_neuron_begin_; }
     std::uint64_t physical_neuron_count() const { return physical_neuron_count_; }
@@ -66,6 +70,7 @@ private:
     std::vector<std::vector<std::uint8_t>> delayed_pending_;
     std::size_t next_buffer_ = 0;
     std::uint32_t processed_timestep_ = 0;
+    std::vector<std::uint32_t> last_state_timestep_;
 };
 
 }  // namespace soma

@@ -41,6 +41,14 @@ public:
                                                const LayerMapping& destination,
                                                std::uint32_t max_neurons_per_core,
                                                Fn&& visit) {
+        if (weights.connection_type == ConnectionType::Crossbar) {
+            if (source_neuron >= weights.route_destination_partition.size()) {
+                throw std::runtime_error("crossbar route source neuron 越界");
+            }
+            const auto partition = weights.route_destination_partition[source_neuron];
+            if (partition >= 0) visit(static_cast<std::uint32_t>(partition));
+            return;
+        }
         const auto partition_count = static_cast<std::uint32_t>(
             (destination.neurons + max_neurons_per_core - 1) / max_neurons_per_core);
         if (weights.connection_type == ConnectionType::Identity) {
@@ -106,7 +114,9 @@ public:
                                                  const LayerMapping& destination,
                                                  std::uint64_t physical_begin,
                                                  std::uint64_t physical_end,
-                                                 Fn&& update) {
+                                                 Fn&& update,
+                                                 std::uint32_t destination_axon = 0) {
+        static_cast<void>(destination_axon);
         if (physical_begin >= physical_end || physical_end > destination.neurons) {
             throw std::runtime_error(destination.id + ": physical Core neuron range 不合法");
         }
@@ -186,6 +196,65 @@ public:
             for (auto channel = first_channel; channel < last_channel; ++channel) {
                 const auto logical = destination_spatial * spatial.cout + channel;
                 update(logical, value * spatial.weight[weight_base + channel]);
+                ++updates;
+            }
+        }
+        return updates;
+    }
+
+    template <typename Fn>
+    static void for_each_destination_packet(const LayerWeights& weights,
+                                            std::uint64_t source_neuron,
+                                            const LayerMapping& destination,
+                                            std::uint32_t max_neurons_per_core,
+                                            Fn&& visit) {
+        if (weights.connection_type == ConnectionType::Crossbar) {
+            if (source_neuron >= weights.route_destination_partition.size()) {
+                throw std::runtime_error("crossbar route source neuron 越界");
+            }
+            const auto partition = weights.route_destination_partition[source_neuron];
+            if (partition >= 0) {
+                visit(static_cast<std::uint32_t>(partition),
+                      static_cast<std::uint32_t>(weights.route_destination_axon[source_neuron]));
+            }
+            return;
+        }
+        for_each_destination_partition(
+            weights, source_neuron, destination, max_neurons_per_core,
+            [&](std::uint32_t partition) { visit(partition, 0U); });
+    }
+
+    template <typename Fn>
+    static std::uint64_t apply_crossbar(const LayerWeights& weights, float value,
+                                        std::uint32_t destination_partition,
+                                        std::uint32_t destination_axon,
+                                        std::uint64_t physical_begin,
+                                        bool nonzero_binary, Fn&& update) {
+        if (destination_axon >= weights.crossbar_axons ||
+            destination_partition * weights.crossbar_axons + destination_axon >=
+                weights.crossbar_axon_type.size()) {
+            throw std::runtime_error("crossbar destination axon 越界");
+        }
+        const auto row = static_cast<std::size_t>(destination_partition) *
+                             weights.crossbar_axons + destination_axon;
+        const auto type = weights.crossbar_axon_type[row];
+        const auto word_base = row * weights.crossbar_words_per_axon;
+        std::uint64_t updates = 0;
+        for (std::uint32_t word_index = 0;
+             word_index < weights.crossbar_words_per_axon; ++word_index) {
+            auto bits = weights.crossbar_rows[word_base + word_index];
+            while (bits != 0) {
+                const auto bit = static_cast<std::uint32_t>(__builtin_ctzll(bits));
+                const auto local = static_cast<std::uint64_t>(word_index) * 64 + bit;
+                const auto physical = physical_begin + local;
+                const auto weight_index = static_cast<std::size_t>(physical) * 4 + type;
+                const auto configured_weight = weights.crossbar_neuron_weight.at(weight_index);
+                // 部分 crossbar 模型只把权重表当作连接使能；语义由 hardware YAML 选择。
+                const auto effective_weight = nonzero_binary
+                                                  ? (configured_weight != 0 ? 1.0F : 0.0F)
+                                                  : static_cast<float>(configured_weight);
+                update(physical, value * effective_weight);
+                bits &= bits - 1;
                 ++updates;
             }
         }

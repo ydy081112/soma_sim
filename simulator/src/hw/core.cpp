@@ -7,6 +7,16 @@
 #include <stdexcept>
 
 namespace soma {
+namespace {
+
+std::vector<float> local_thresholds(const LayerWeights& weights,
+                                    std::uint64_t begin, std::uint64_t count) {
+    if (weights.threshold.empty()) return {};
+    return std::vector<float>(weights.threshold.begin() + static_cast<std::ptrdiff_t>(begin),
+                              weights.threshold.begin() + static_cast<std::ptrdiff_t>(begin + count));
+}
+
+}  // namespace
 
 Core::Core(const LayerMapping& mapping, const HardwareConfig& hardware, const LayerWeights& weights,
            PhysicalCoreAddress address, std::uint64_t physical_neuron_begin,
@@ -16,11 +26,16 @@ Core::Core(const LayerMapping& mapping, const HardwareConfig& hardware, const La
       physical_neuron_count_(physical_neuron_count),
       soma_(static_cast<std::size_t>(physical_neuron_count), mapping.threshold, mapping.leak,
             mapping.reset, mapping.readout, mapping.membrane_quantization_step,
-            mapping.threshold_comparison),
+            mapping.threshold_comparison,
+            hardware.core.threshold_compare_mode,
+            local_thresholds(weights, physical_neuron_begin, physical_neuron_count),
+            hardware.core.membrane_min, hardware.core.membrane_max,
+            hardware.core.fire_on_positive_saturation),
       delayed_buffers_(static_cast<std::size_t>(max_connection_delay) + 1,
                        std::vector<float>(static_cast<std::size_t>(physical_neuron_count), 0.0F)),
       delayed_pending_(static_cast<std::size_t>(max_connection_delay) + 1,
-                       std::vector<std::uint8_t>(static_cast<std::size_t>(physical_neuron_count), 0)) {
+                       std::vector<std::uint8_t>(static_cast<std::size_t>(physical_neuron_count), 0)),
+      last_state_timestep_(static_cast<std::size_t>(physical_neuron_count), 0) {
     if (physical_neuron_count == 0 ||
         physical_neuron_begin + physical_neuron_count > mapping.neurons ||
         physical_neuron_count > hardware.core.max_neurons) {
@@ -31,7 +46,8 @@ Core::Core(const LayerMapping& mapping, const HardwareConfig& hardware, const La
 CoreReceiveResult Core::receive(std::uint64_t source_neuron, float value, std::uint32_t timestep,
                                 SimTime hw_arrival_time,
                                 const LayerWeights* connection_weights,
-                                std::uint32_t connection_delay) {
+                                std::uint32_t connection_delay,
+                                std::uint32_t destination_axon) {
     const auto& active_weights = connection_weights == nullptr ? weights_ : *connection_weights;
     if (source_neuron >= active_weights.source_neurons && active_weights.source_neurons != 0)
         throw std::runtime_error(mapping_.id + ": source neuron 越界");
@@ -44,7 +60,18 @@ CoreReceiveResult Core::receive(std::uint64_t source_neuron, float value, std::u
     // SynapseEngine 直接遍历紧凑模板，Data 只累加到下一 timestep 使用的 buffer。
     // 根据 Spatial Pattern / Linear weight, 找到所有受影响 destination neuron
     const auto physical_end = physical_neuron_begin_ + physical_neuron_count_;
-    const auto updates = SynapseEngine::apply_to_physical_range(
+    const auto updates = active_weights.connection_type == ConnectionType::Crossbar
+        ? SynapseEngine::apply_crossbar(
+            weights_, value, address_.global_core -
+                (mapping_.pe * hardware_.core.cores_per_pe + mapping_.core),
+            destination_axon, physical_neuron_begin_,
+            hardware_.core.crossbar_weight_mode == "nonzero_binary",
+            [&](std::uint64_t destination, float delta) {
+                const auto index = static_cast<std::size_t>(destination - physical_neuron_begin_);
+                delayed_buffers_[buffer][index] += delta;
+                delayed_pending_[buffer][index] = 1;
+            })
+        : SynapseEngine::apply_to_physical_range(
         active_weights, source_neuron, value, mapping_, physical_neuron_begin_, physical_end,
         // 同一 neuron 的多次输入先求和，pending 位区分“没有输入”和“输入和为 0”。
         [&](std::uint64_t destination, float delta) {
@@ -52,13 +79,27 @@ CoreReceiveResult Core::receive(std::uint64_t source_neuron, float value, std::u
             const auto index = static_cast<std::size_t>(physical - physical_neuron_begin_);
             delayed_buffers_[buffer][index] += delta;
             delayed_pending_[buffer][index] = 1;
-        });
+        }, destination_axon);
+
+    if (active_weights.connection_type == ConnectionType::Crossbar &&
+        hardware_.core.crossbar_packet_activates_all_neurons) {
+        // Axon broadcast 即使 crossbar bit 为 0 也会启动该 neuron 的 timestep heartbeat。
+        for (std::uint64_t local = 0; local < physical_neuron_count_; ++local) {
+            const auto physical = physical_neuron_begin_ + local;
+            if (weights_.active_neuron.empty() || weights_.active_neuron[physical] != 0 ||
+                hardware_.core.process_inactive_neurons_on_crossbar_event) {
+                delayed_pending_[buffer][static_cast<std::size_t>(local)] = 1;
+            }
+        }
+    }
 
     // Spatial Pattern 与 source-major Dense 保持各自的可配置 synapse service cost。
     const auto hardware_type = connection_weights == nullptr && active_weights.op == LayerOp::Linear
                                    ? ConnectionType::Dense
                                    : active_weights.hardware_type;
-    const auto synapse_hw_latency = hardware_type == ConnectionType::Identity
+    const auto synapse_hw_latency = hardware_type == ConnectionType::Crossbar
+                                        ? hardware_.core.crossbar_synapse_hw_latency
+                                    : hardware_type == ConnectionType::Identity
                                         ? hardware_.core.identity_synapse_hw_latency
                                     : hardware_type == ConnectionType::Dense
                                         ? hardware_.core.dense_synapse_hw_latency
@@ -87,12 +128,23 @@ CoreNeuronProcessResult Core::process_timestep(std::uint32_t timestep,
     auto& timestep_pending = delayed_pending_[next_buffer_];
 
     CoreNeuronProcessResult result;
-    result.mapped_neurons = physical_neuron_count_;
+    result.mapped_neurons = weights_.active_neuron.empty() ? physical_neuron_count_ : 0;
     SimTime hw_service_latency = 0;
-    std::vector<std::pair<FiredNeuron, SimTime>> relative_firings;
+    struct RelativeFiring {
+        FiredNeuron fired;
+        SimTime service_finish_time = 0;
+        std::uint32_t local_neuron = 0;
+    };
+    std::vector<RelativeFiring> relative_firings;
     for (std::uint64_t local_neuron = 0; local_neuron < physical_neuron_count_; ++local_neuron) {
         const auto index = static_cast<std::size_t>(local_neuron);
         const auto physical_neuron = physical_neuron_begin_ + local_neuron;
+        const bool active = weights_.active_neuron.empty() ||
+                            weights_.active_neuron[physical_neuron] != 0;
+        if (!active && !hardware_.core.process_inactive_neurons_on_crossbar_event) continue;
+        if (!weights_.active_neuron.empty() && active) ++result.mapped_neurons;
+        const bool pending = timestep_pending[index] != 0;
+        if (hardware_.core.neuron_update_mode == "event_activated_catch_up" && !pending) continue;
         const auto neuron = mapping_.logical_neuron_index(physical_neuron);
         auto add_latency = [&](SimTime latency) {
             if (latency > std::numeric_limits<SimTime>::max() - hw_service_latency) {
@@ -102,20 +154,28 @@ CoreNeuronProcessResult Core::process_timestep(std::uint32_t timestep,
         };
         add_latency(hardware_.core.soma_access_hw_latency);
 
-        const float bias = weights_.bias.empty()
+        const float configured_bias = weights_.bias.empty()
                                ? 0.0F
-                               : weights_.bias[static_cast<std::size_t>(
-                                     neuron % mapping_.output_channels)];
+                               : weights_.bias.size() == mapping_.neurons
+                                     ? weights_.bias[static_cast<std::size_t>(neuron)]
+                                     : weights_.bias[static_cast<std::size_t>(
+                                           neuron % mapping_.output_channels)];
+        const auto elapsed = hardware_.core.neuron_update_mode == "event_activated_catch_up"
+                                 ? timestep - last_state_timestep_[index]
+                                 : 1U;
         const auto neuron_result = soma_.process_neuron(
-            local_neuron, timestep_buffer[index], timestep_pending[index] != 0, bias);
+            local_neuron, timestep_buffer[index], pending,
+            configured_bias * static_cast<float>(elapsed));
+        last_state_timestep_[index] = timestep;
         if (neuron_result.updated) {
             ++result.updated_neurons;
             add_latency(hardware_.core.soma_update_hw_latency);
         }
         if (neuron_result.fired) {
             add_latency(hardware_.core.soma_fire_hw_latency);
-            relative_firings.emplace_back(
-                FiredNeuron{neuron, neuron_result.fired->value}, hw_service_latency);
+            relative_firings.push_back(RelativeFiring{
+                FiredNeuron{neuron, neuron_result.fired->value}, hw_service_latency,
+                static_cast<std::uint32_t>(local_neuron)});
         }
         timestep_buffer[index] = 0.0F;
         timestep_pending[index] = 0;
@@ -132,7 +192,8 @@ CoreNeuronProcessResult Core::process_timestep(std::uint32_t timestep,
     result.firings.reserve(relative_firings.size());
     for (const auto& firing : relative_firings) {
         result.firings.push_back(
-            CoreFiringResult{firing.first, reservation.hw_start_time + firing.second});
+            CoreFiringResult{firing.fired, reservation.hw_start_time + firing.service_finish_time,
+                             address_.global_core, firing.local_neuron});
     }
     return result;
 }

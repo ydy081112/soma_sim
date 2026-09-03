@@ -8,11 +8,19 @@
 /input/vgg16_input_spike.csv
 /input/vgg16_source_parameters.npz
 /input/cifar10_sample_000.npz
+/input/truenorth_vgg16_*.nfg1
+/input/truenorth_vgg16_*.sqlite
+/input/truenorth_vgg16_*.npz
+/input/truenorth_vgg16_*input_spike*.csv
 /reference/*.npz
 /output_vgg16/
 /docs/background.md
 __pycache__/
 *.pyc
+
+# MLIR 子工程的本地构建缓存；保留小型、可阅读的导入 IR。
+/compiler/mlir-soma/build/
+/compiler/mlir-soma/output/*.verified.mlir
 
 # 实验性对比图、临时方案和审计数据不随正式源码发布。
 others/

@@ -77,8 +77,19 @@ int main(int argc, char** argv) {
         require(hardware.core.soma_access_hw_latency == 6000 &&
                     hardware.core.soma_update_hw_latency == 3700,
                 "soma access and update latency schema");
+        require(hardware.core.threshold_compare_mode == "signed",
+                "existing hardware keeps signed threshold comparison by default");
         require(hardware.noc.synchronization_hw_latency(70) == 1'800'000,
                 "timestep synchronization latency table");
+        const auto truenorth_hardware = soma::HardwareConfig::load(
+            root + "/arch/truenorth.yaml");
+        require(truenorth_hardware.core.max_neurons == 256 &&
+                    truenorth_hardware.core.max_axons == 256 &&
+                    truenorth_hardware.core.crossbar_weight_mode == "nonzero_binary" &&
+                    truenorth_hardware.core.threshold_compare_mode == "unsigned_promotion" &&
+                    truenorth_hardware.core.crossbar_packet_activates_all_neurons &&
+                    truenorth_hardware.core.process_inactive_neurons_on_crossbar_event,
+                "TrueNorth crossbar behavior is selected by hardware config");
         const auto mapping = soma::MappingConfig::load(root + "/compiler/mapping_output/mapping.yaml");
         mapping.validate(static_cast<std::uint32_t>(hardware.noc.router_count()));
         const auto vgg_mapping = soma::MappingConfig::load(
@@ -157,6 +168,28 @@ int main(int argc, char** argv) {
                     std::abs(destination[1] - 1.5F) < 1e-6F,
                 "source-major spatial template");
 
+        soma::LayerWeights crossbar_weights;
+        crossbar_weights.crossbar_axons = 1;
+        crossbar_weights.crossbar_words_per_axon = 1;
+        crossbar_weights.crossbar_axon_type = {1};
+        crossbar_weights.crossbar_rows = {0b11};
+        crossbar_weights.crossbar_neuron_weight = {
+            0, -3, 0, 0,
+            0, 0, 0, 0,
+        };
+        std::vector<float> signed_crossbar(2, 0.0F);
+        const auto signed_updates = soma::SynapseEngine::apply_crossbar(
+            crossbar_weights, 1.0F, 0, 0, 0, false,
+            [&](std::uint64_t neuron, float value) { signed_crossbar[neuron] += value; });
+        std::vector<float> binary_crossbar(2, 0.0F);
+        const auto binary_updates = soma::SynapseEngine::apply_crossbar(
+            crossbar_weights, 1.0F, 0, 0, 0, true,
+            [&](std::uint64_t neuron, float value) { binary_crossbar[neuron] += value; });
+        require(signed_updates == 2 && binary_updates == 2 &&
+                    signed_crossbar == std::vector<float>({-3.0F, 0.0F}) &&
+                    binary_crossbar == std::vector<float>({1.0F, 0.0F}),
+                "crossbar signed/nonzero-binary accumulation follows hardware config");
+
         soma::SomaState soma_state(3, 1.0F, 1.0F, "soft", false);
         const auto first_fire = soma_state.process_neuron(0, 2.5F, true, 0.0F);
         require(first_fire.updated && first_fire.fired && first_fire.fired->neuron == 0 &&
@@ -169,6 +202,27 @@ int main(int argc, char** argv) {
         const auto bias_fire = soma_state.process_neuron(2, 0.0F, false, 1.5F);
         require(bias_fire.updated && bias_fire.fired,
                 "bias participates directly in neuron processing");
+        soma::SomaState zero_threshold_slot(
+            1, 1.0F, 1.0F, "soft", false, 0.0F, "greater_equal", "signed", {0.0F});
+        require(zero_threshold_slot.process_neuron(0, 0.0F, true, 0.0F).fired.has_value(),
+                "zero-initialized inactive crossbar slot can reproduce event-model firing");
+        soma::SomaState signed_threshold_slot(
+            1, 177.0F, 1.0F, "soft", false, 0.0F, "greater_equal", "signed");
+        require(!signed_threshold_slot.process_neuron(0, -135.0F, true, 0.0F).fired.has_value(),
+                "signed threshold comparison keeps negative membrane below positive threshold");
+        const std::vector<std::pair<float, float>> nemo_target_states = {
+            {9.0F, -312.0F}, {5.0F, -316.0F}, {1.0F, -320.0F}};
+        for (const auto& [synaptic_input, expected_reset_voltage] : nemo_target_states) {
+            soma::SomaState nemo_threshold_slot(
+                1, 177.0F, 1.0F, "soft", false, 0.0F, "greater_equal",
+                "unsigned_promotion");
+            const auto nemo_threshold_fire =
+                nemo_threshold_slot.process_neuron(0, synaptic_input, true, -144.0F);
+            require(nemo_threshold_fire.fired.has_value() &&
+                        std::abs(nemo_threshold_slot.voltage()[0] - expected_reset_voltage) <
+                            1e-6F,
+                    "unsigned promotion reproduces each NeMo target firing and linear reset");
+        }
 
         soma::LayerMapping direct_mapping;
         direct_mapping.id = "direct_fire";

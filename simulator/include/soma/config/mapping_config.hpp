@@ -7,8 +7,8 @@
 
 namespace soma {
 
-enum class LayerOp { Input, Conv2d, Linear, AvgPool2d };
-enum class ConnectionType { Spatial, Dense, Identity };
+enum class LayerOp { Input, Conv2d, Linear, AvgPool2d, Crossbar };
+enum class ConnectionType { Spatial, Dense, Identity, Crossbar };
 
 struct LayerMapping {
     // 一个条目描述一个 layer partition 到 PE/Core/Router 的静态放置。
@@ -36,8 +36,11 @@ struct LayerMapping {
     float membrane_quantization_step = 0.0F;
     std::string threshold_comparison = "greater_equal";
     bool virtual_input = false;
+    bool direct_input = false;
     bool readout = false;
     bool channelwise = false;
+    std::uint64_t readout_neuron_begin = 0;
+    std::uint32_t readout_neuron_count = 0;
 
     std::uint64_t physical_neuron_index(std::uint64_t logical_neuron) const;
     std::uint64_t logical_neuron_index(std::uint64_t physical_neuron) const;

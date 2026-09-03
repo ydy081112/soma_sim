@@ -12,6 +12,7 @@ LayerOp parse_op(const std::string& value) {
     if (value == "conv2d") return LayerOp::Conv2d;
     if (value == "linear") return LayerOp::Linear;
     if (value == "avgpool2d") return LayerOp::AvgPool2d;
+    if (value == "crossbar") return LayerOp::Crossbar;
     throw std::runtime_error("不支持的 layer op: " + value);
 }
 
@@ -19,6 +20,7 @@ ConnectionType parse_connection_type(const std::string& value) {
     if (value == "spatial") return ConnectionType::Spatial;
     if (value == "dense") return ConnectionType::Dense;
     if (value == "identity") return ConnectionType::Identity;
+    if (value == "crossbar") return ConnectionType::Crossbar;
     throw std::runtime_error("不支持的 connection type: " + value);
 }
 
@@ -69,8 +71,11 @@ MappingConfig MappingConfig::load(const std::string& path) {
         layer.threshold_comparison = yaml::get_string(
             node, "threshold_comparison", "greater_equal");
         layer.virtual_input = yaml::get_bool(node, "virtual_input", false);
+        layer.direct_input = yaml::get_bool(node, "direct_input", false);
         layer.readout = yaml::get_bool(node, "readout", false);
         layer.channelwise = yaml::get_bool(node, "channelwise", false);
+        layer.readout_neuron_begin = yaml::get_u64(node, "readout_neuron_begin", 0);
+        layer.readout_neuron_count = u32(node, "readout_neuron_count", 0);
         config.layers.push_back(std::move(layer));
     }
 
@@ -148,6 +153,13 @@ void MappingConfig::validate(std::uint32_t router_count) const {
         if (layer.threshold_comparison != "greater" &&
             layer.threshold_comparison != "greater_equal")
             throw std::runtime_error(layer.id + ": threshold_comparison 仅支持 greater/greater_equal");
+        if (layer.direct_input && (!layer.virtual_input || layer.op != LayerOp::Input)) {
+            throw std::runtime_error(layer.id + ": direct_input 仅适用于 virtual input layer");
+        }
+        if (layer.readout_neuron_count != 0 &&
+            layer.readout_neuron_begin + layer.readout_neuron_count > layer.neurons) {
+            throw std::runtime_error(layer.id + ": readout neuron range 越界");
+        }
     }
     for (const auto& connection : connections) {
         const auto& from = layer(connection.from);
@@ -188,6 +200,7 @@ std::string to_string(ConnectionType type) {
         case ConnectionType::Spatial: return "spatial";
         case ConnectionType::Dense: return "dense";
         case ConnectionType::Identity: return "identity";
+        case ConnectionType::Crossbar: return "crossbar";
     }
     return "unknown";
 }
@@ -223,6 +236,7 @@ std::string to_string(LayerOp op) {
         case LayerOp::Conv2d: return "conv2d";
         case LayerOp::Linear: return "linear";
         case LayerOp::AvgPool2d: return "avgpool2d";
+        case LayerOp::Crossbar: return "crossbar";
     }
     return "unknown";
 }

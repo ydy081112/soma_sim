@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <limits>
 #include <string>
 
 namespace soma {
@@ -25,6 +26,7 @@ struct EnergyConfig {
     double spatial_synapse_pj = 0.0;
     double dense_synapse_pj = 0.0;
     double identity_synapse_pj = 0.0;
+    double crossbar_synapse_pj = 0.0;
     double soma_update_pj = 0.0;
     double soma_fire_pj = 0.0;
 };
@@ -83,6 +85,9 @@ struct HardwareConfig {
         std::uint32_t pe_count = 1;
         std::uint32_t cores_per_pe = 1;
         std::uint32_t max_neurons = 1'024;
+        std::uint32_t max_axons = 1'024;
+        std::uint32_t cores_per_tile = 4;
+        std::uint32_t cores_per_chip = 4'096;
         std::uint32_t input_buffer_depth = 16;
         bool input_fifo = false;
         bool fifo_per_core = false;
@@ -98,13 +103,33 @@ struct HardwareConfig {
         SimTime spatial_synapse_hw_latency = 0;
         SimTime dense_synapse_hw_latency = 0;
         SimTime identity_synapse_hw_latency = 0;
+        SimTime crossbar_synapse_hw_latency = 0;
         SimTime soma_access_hw_latency = 0;
         SimTime soma_update_hw_latency = 0;
         SimTime soma_fire_hw_latency = 0;
         float default_threshold = 1.0F;
         float default_leak = 1.0F;
         std::string reset = "soft";
+        // all_mapped 保持既有同步扫描；event_activated_catch_up 复现按事件启动的 heartbeat。
+        std::string neuron_update_mode = "all_mapped";
+        // signed 使用配置权重；nonzero_binary 将任意非零权重解释为单位脉冲贡献。
+        std::string crossbar_weight_mode = "signed";
+        // signed 保持常规有符号阈值比较；unsigned_promotion 复现 int32/uint32 的 C 提升。
+        std::string threshold_compare_mode = "signed";
+        // 某些 crossbar 将一个 axon packet 广播给 Core 内全部 neuron heartbeat。
+        bool crossbar_packet_activates_all_neurons = false;
+        // 兼容会把未映射 crossbar slot 也作为零初始化 neuron 执行的事件模型。
+        bool process_inactive_neurons_on_crossbar_event = false;
+        float membrane_min = -std::numeric_limits<float>::infinity();
+        float membrane_max = std::numeric_limits<float>::infinity();
+        bool fire_on_positive_saturation = false;
     } core;
+
+    struct StatisticsConfig {
+        std::uint32_t firing_timestep_offset = 0;
+        // 默认不保存逐 neuron trace，避免大规模 benchmark 的 I/O 与内存开销。
+        bool firing_trace = false;
+    } statistics;
 
     EnergyConfig energy;
 

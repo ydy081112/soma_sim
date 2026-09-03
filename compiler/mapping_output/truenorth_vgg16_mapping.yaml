@@ -1,0 +1,51 @@
+mapping:
+  model: nemo_vgg16_snn_cifar10_truenorth
+  policy: nemo_256x256_crossbar_core_ids
+  hardware: arch/truenorth.yaml
+  layers:
+    - id: input
+      op: input
+      pe: 0
+      core: 0
+      router: 0
+      neurons: 1889398
+      output_channels: 1
+      virtual_input: true
+      direct_input: true
+    - id: truenorth
+      op: crossbar
+      pe: 0
+      core: 0
+      router: 0
+      source_neurons: 5084160
+      neurons: 5084160
+      output_channels: 1
+      aggregate_core_count: 19860
+      weight_prefix: tn
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      threshold_comparison: greater_equal
+      readout_neuron_begin: 5083904
+      readout_neuron_count: 10
+  connections:
+    - from: input
+      to: truenorth
+      type: crossbar
+      hardware_type: crossbar
+      weight_prefix: tn_input
+      delay: 0
+    - from: truenorth
+      to: truenorth
+      type: crossbar
+      hardware_type: crossbar
+      weight_prefix: tn_recurrent
+      # NeMo neuron output 下一 big tick 才到达目标 axon。
+      delay: 1
+  routes:
+    - from: input
+      to: truenorth
+      routers: [0]
+    - from: truenorth
+      to: truenorth
+      routers: [0]

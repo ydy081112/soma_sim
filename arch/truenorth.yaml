@@ -1,0 +1,91 @@
+# 参数与结构取自 SANA-FE arch/truenorth.yaml 和 NeMo TrueNorth 模型。
+architecture:
+  name: configurable_crossbar_mesh
+  execution_mode: timestep_synchronization
+  frequency_mhz: 1000
+  noc:
+    topology: mesh
+    # 五个 4096-Core chip 的 Core ID 连续放置；零时延配置下不假设片间物理延迟。
+    rows: 64
+    cols: 320
+    routing: static
+    congestion_model: resource_table
+    virtual_channels: 1
+    input_buffer_depth: 1
+    flit_width_bits: 32
+    spike_per_flit: 1
+    pipeline:
+      input_queue_hardware_latency: 0 ps
+      route_compute_hardware_latency: 0 ps
+      switch_allocate_hardware_latency: 0 ps
+      switch_traversal_hardware_latency: 0 ps
+    link:
+      hardware_latency: 0 ps
+      busy_hardware_latency: 0 ps
+      send:
+        req: false
+        data: true
+      receive:
+        ack: false
+        credit: false
+    synchronization:
+      model: fixed
+      hardware_latency_1: 0 ps
+  core:
+    pe_count: 20480
+    cores_per_pe: 1
+    cores_per_tile: 1
+    cores_per_chip: 4096
+    max_neurons: 256
+    max_axons: 256
+    input_buffer_depth: 1
+    input_fifo: false
+    fifo_per_core: false
+    source_packet_fifo: false
+    fifo_num_per_core: 1
+    fifo_depth_per_core: 1
+    synapse_sram_bytes: 16384
+    hardware_latency:
+      axon_in: 0 ps
+      axon_out: 0 ps
+      sram_read: 0 ps
+      sram_write: 0 ps
+      synapse:
+        spatial: 0 ps
+        dense: 0 ps
+        identity: 0 ps
+        crossbar: 0 ps
+      soma_access: 0 ps
+      soma_update: 0 ps
+      soma_fire: 0 ps
+    neuron:
+      model: integer_integrate_fire
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+      update_mode: event_activated_catch_up
+      # NeMo TNIntegrate 对有效 crossbar 项执行布尔非零判断，连接贡献固定为 +1。
+      crossbar_weight_mode: nonzero_binary
+      # NeMo 以 int32 membrane 与 uint32 threshold 直接比较，负 membrane 会提升为 uint32。
+      threshold_compare_mode: unsigned_promotion
+      # 一个 axon packet 广播到 Core 内所有 neuron，并为 active neuron 安排 heartbeat。
+      crossbar_packet_activates_all_neurons: true
+      # NeMo 的事件入口会执行 nfg1 中未映射、保持零初始化的 crossbar slots。
+      process_inactive_neurons_on_crossbar_event: true
+      membrane_min: -393216
+      membrane_max: 393216
+      fire_on_positive_saturation: true
+  statistics:
+    # NeMo --svs 在 commit 时以 tw_now + 1 写出 firing timestamp。
+    firing_timestep_offset: 1
+  energy_pj:
+    router_hop: 0.0
+    link_hop: 0.0
+    axon_in: 0.0
+    axon_out: 0.0
+    sram_read: 0.0
+    sram_write: 0.0
+    synapse: 0.0
+    synapse_crossbar: 0.0
+    soma_update: 0.0
+    soma_fire: 0.0

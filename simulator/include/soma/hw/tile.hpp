@@ -9,6 +9,7 @@ namespace soma {
 struct PhysicalCoreAddress {
     std::uint32_t global_core = 0;
     std::uint32_t tile = 0;
+    std::uint32_t chip = 0;
     std::uint32_t core_within_tile = 0;
     std::uint32_t router = 0;
 };

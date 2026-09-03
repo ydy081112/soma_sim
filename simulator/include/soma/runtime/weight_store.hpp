@@ -18,6 +18,15 @@ struct LayerWeights {
     std::vector<float> dense_weight;  // [Cin, Cout]
     std::vector<float> identity_weight;  // scalar、逐 channel 或逐 neuron。
     std::vector<float> bias;
+    std::vector<float> threshold;
+    std::vector<std::uint8_t> active_neuron;
+    std::vector<std::uint8_t> crossbar_axon_type;
+    std::vector<std::int16_t> crossbar_neuron_weight;  // [physical neuron, weight type]
+    std::vector<std::uint64_t> crossbar_rows;  // [Core, axon, 64-neuron word]
+    std::uint32_t crossbar_axons = 0;
+    std::uint32_t crossbar_words_per_axon = 0;
+    std::vector<std::int32_t> route_destination_partition;
+    std::vector<std::uint16_t> route_destination_axon;
 };
 
 class WeightStore {

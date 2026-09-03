@@ -136,6 +136,22 @@ std::vector<std::int64_t> NpyArray::as_i64() const {
     throw std::runtime_error("无法将 dtype 转成 int64: " + dtype);
 }
 
+std::vector<std::int16_t> NpyArray::as_i16() const {
+    return copy_exact<std::int16_t>(*this, "<i2");
+}
+
+std::vector<std::uint8_t> NpyArray::as_u8() const {
+    return copy_exact<std::uint8_t>(*this, "|u1");
+}
+
+std::vector<std::uint16_t> NpyArray::as_u16() const {
+    return copy_exact<std::uint16_t>(*this, "<u2");
+}
+
+std::vector<std::uint64_t> NpyArray::as_u64() const {
+    return copy_exact<std::uint64_t>(*this, "<u8");
+}
+
 NpzArchive NpzArchive::load(const std::string& path) {
     std::ifstream input(path, std::ios::binary);
     if (!input) throw std::runtime_error("无法打开 NPZ: " + path);

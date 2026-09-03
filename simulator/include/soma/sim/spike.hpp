@@ -19,6 +19,7 @@ struct Spike {
     std::size_t destination_layer = 0;
     std::size_t connection = 0;
     std::uint32_t destination_partition = 0;
+    std::uint32_t destination_axon = 0;
     float value = 1.0F;
 };
 

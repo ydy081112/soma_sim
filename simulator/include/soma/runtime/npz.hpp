@@ -19,6 +19,10 @@ struct NpyArray {
     std::vector<float> as_f32() const;
     std::vector<std::int32_t> as_i32() const;
     std::vector<std::int64_t> as_i64() const;
+    std::vector<std::int16_t> as_i16() const;
+    std::vector<std::uint8_t> as_u8() const;
+    std::vector<std::uint16_t> as_u16() const;
+    std::vector<std::uint64_t> as_u64() const;
 };
 
 class NpzArchive {
