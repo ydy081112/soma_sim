@@ -8,6 +8,7 @@
 #include "soma/hw/tile.hpp"
 #include "soma/input_encoder.hpp"
 #include "soma/runtime/spatial_template.hpp"
+#include "soma/runtime/incremental_spike_matmul.hpp"
 #include "soma/sim/spike_queue.hpp"
 
 #include <cmath>
@@ -60,6 +61,53 @@ int main(int argc, char** argv) {
         synchronized_queue.push(first_timestep);
         require(synchronized_queue.pop().spike_id == 5,
                 "synchronized queue orders timestep before hardware timestamp");
+
+        // +1/0/-1 的逐 timestep QK/AV 恒等式：累计增量必须等于 shadow 外积。
+        soma::IncrementalSpikeMatmul qk(
+            soma::IncrementalSpikeMatmul::Kind::Qk, 1, 2, 2, 2);
+        const std::vector<std::vector<std::int8_t>> lhs = {{1, 0, -1, 1}, {0, 1, 1, 0}};
+        const std::vector<std::vector<std::int8_t>> rhs = {{0, 1, 1, -1}, {1, 0, -1, 1}};
+        std::vector<std::int32_t> shadow_l(4, 0), shadow_r(4, 0);
+        for (std::size_t t = 0; t < lhs.size(); ++t) {
+            qk.update(lhs[t], rhs[t]);
+            for (std::size_t i = 0; i < 4; ++i) { shadow_l[i] += lhs[t][i]; shadow_r[i] += rhs[t][i]; }
+            std::vector<std::int32_t> expected(4, 0);
+            for (std::size_t r = 0; r < 2; ++r)
+                for (std::size_t c = 0; c < 2; ++c)
+                    for (std::size_t k = 0; k < 2; ++k)
+                        expected[r * 2 + c] += shadow_l[r * 2 + k] * shadow_r[c * 2 + k];
+            require(qk.accumulated_output() == expected,
+                    "incremental QK equals cumulative tracer outer product at every timestep");
+        }
+        soma::IncrementalSpikeMatmul av(
+            soma::IncrementalSpikeMatmul::Kind::Av, 1, 2, 2, 2);
+        shadow_l.assign(4, 0); shadow_r.assign(4, 0);
+        for (std::size_t t = 0; t < lhs.size(); ++t) {
+            av.update(lhs[t], rhs[t]);
+            for (std::size_t i = 0; i < 4; ++i) { shadow_l[i] += lhs[t][i]; shadow_r[i] += rhs[t][i]; }
+            std::vector<std::int32_t> expected(4, 0);
+            for (std::size_t r = 0; r < 2; ++r)
+                for (std::size_t c = 0; c < 2; ++c)
+                    for (std::size_t k = 0; k < 2; ++k)
+                        expected[r * 2 + c] += shadow_l[r * 2 + k] * shadow_r[c * 2 + k];
+            require(av.accumulated_output() == expected,
+                    "incremental QKV equals cumulative tracer product at every timestep");
+        }
+
+        // 双来源 residual 的每条配置 connection 保留独立 scalar weight；两路累加
+        // 后才交给同一个 destination ST-BIF buffer，不依赖任何 ViT 节点名。
+        soma::LayerWeights residual_lhs, residual_rhs;
+        residual_lhs.connection_type = soma::ConnectionType::Identity;
+        residual_rhs.connection_type = soma::ConnectionType::Identity;
+        residual_lhs.identity_weight = {512.0F};
+        residual_rhs.identity_weight = {128.0F};
+        float residual_sum = 0.0F;
+        require(soma::SynapseEngine::apply(residual_lhs, 0, 1.0F, 1,
+                                            [&](std::uint64_t, float value) { residual_sum += value; }) == 1 &&
+                    soma::SynapseEngine::apply(residual_rhs, 0, -1.0F, 1,
+                                                [&](std::uint64_t, float value) { residual_sum += value; }) == 1 &&
+                    residual_sum == 384.0F,
+                "two-input weighted identity residual preserves independent shifts");
 
         const auto hardware = soma::HardwareConfig::load(root + "/arch/hardware.yaml");
         require(hardware.timestep_synchronization(), "execution mode config");
@@ -202,6 +250,15 @@ int main(int argc, char** argv) {
         const auto bias_fire = soma_state.process_neuron(2, 0.0F, false, 1.5F);
         require(bias_fire.updated && bias_fire.fired,
                 "bias participates directly in neuron processing");
+        soma::SomaState st_bif(1, 5.0F, 1.0F, "soft", false, 0.0F,
+                               "greater_equal", "signed", {},
+                               -100.0F, 100.0F, false, "st_bif", -1, 1);
+        const auto st_positive = st_bif.process_neuron(0, 5.0F, true, 0.0F);
+        const auto st_negative = st_bif.process_neuron(0, -6.0F, true, 0.0F);
+        require(st_positive.fired && st_positive.fired->value == 1.0F &&
+                    st_negative.fired && st_negative.fired->value == -1.0F &&
+                    st_bif.tracer()[0] == 0 && std::abs(st_bif.voltage()[0] + 1.0F) < 1e-6F,
+                "ST-BIF keeps local membrane/tracer and emits signed spikes without leak");
         soma::SomaState zero_threshold_slot(
             1, 1.0F, 1.0F, "soft", false, 0.0F, "greater_equal", "signed", {0.0F});
         require(zero_threshold_slot.process_neuron(0, 0.0F, true, 0.0F).fired.has_value(),

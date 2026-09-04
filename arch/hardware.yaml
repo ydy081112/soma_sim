@@ -67,6 +67,9 @@ architecture:
       soma_access: 6.0 ns
       soma_update: 3.7 ns
       soma_fire: 30.0 ns
+      attention:
+        qk_process: 3.8 ns
+        qkv_process: 3.8 ns
     neuron:
       model: leaky_integrate_fire
       threshold: 1.0
@@ -88,3 +91,6 @@ architecture:
     synapse_identity: 33.6
     soma_update: 72.8
     soma_fire: 69.3
+    attention:
+      qk_process: 35.5
+      qkv_process: 35.5

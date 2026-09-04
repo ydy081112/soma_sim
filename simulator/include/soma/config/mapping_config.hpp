@@ -8,7 +8,7 @@
 namespace soma {
 
 enum class LayerOp { Input, Conv2d, Linear, AvgPool2d, Crossbar };
-enum class ConnectionType { Spatial, Dense, Identity, Crossbar };
+enum class ConnectionType { Spatial, Dense, GroupedDense, Identity, Crossbar, AttentionOperand };
 
 struct LayerMapping {
     // 一个条目描述一个 layer partition 到 PE/Core/Router 的静态放置。
@@ -32,6 +32,20 @@ struct LayerMapping {
     std::string weight_prefix;
     float threshold = 1.0F;
     float leak = 1.0F;
+    std::string neuron_model = "lif";
+    std::int32_t tracer_min = 0;
+    std::int32_t tracer_max = 0;
+    std::uint32_t state_start_timestep = 0;
+    std::string operator_type = "standard";
+    std::string attention_kind;
+    std::uint32_t attention_heads = 0;
+    std::uint32_t attention_rows = 0;
+    std::uint32_t attention_reduction = 0;
+    std::uint32_t attention_columns = 0;
+    std::string attention_output_layout = "head_row_column";
+    std::int32_t attention_accumulation_scale = 1;
+    // 可选的 destination timestep accumulation 量化，取值 none/nearest_even。
+    std::string post_accumulation_rounding = "none";
     std::string reset = "soft";
     float membrane_quantization_step = 0.0F;
     std::string threshold_comparison = "greater_equal";
@@ -55,6 +69,8 @@ struct ConnectionMapping {
     std::string weight_prefix;
     std::uint32_t delay = 0;
     bool channelwise = false;
+    std::string operand;
+    std::string operand_layout = "flat_internal";
 };
 
 struct StaticRoute {
@@ -67,6 +83,8 @@ struct StaticRoute {
 class MappingConfig {
 public:
     std::string model;
+    std::uint32_t flush_timesteps = 0;
+    bool signed_firing_trace = false;
     std::vector<LayerMapping> layers;
     std::vector<ConnectionMapping> connections;
     std::vector<StaticRoute> routes;

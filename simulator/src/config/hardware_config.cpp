@@ -147,6 +147,11 @@ HardwareConfig HardwareConfig::load(const std::string& path) {
     config.core.soma_access_hw_latency = hw_latency_field(hw_latency, "soma_access", 0);
     config.core.soma_update_hw_latency = hw_latency_field(hw_latency, "soma_update", 0);
     config.core.soma_fire_hw_latency = hw_latency_field(hw_latency, "soma_fire", 0);
+    const auto& attention_hw_latency = optional_map(hw_latency, "attention");
+    config.core.qk_attention_hw_latency = hw_latency_field(
+        attention_hw_latency, "qk_process", config.core.dense_synapse_hw_latency);
+    config.core.qkv_attention_hw_latency = hw_latency_field(
+        attention_hw_latency, "qkv_process", config.core.dense_synapse_hw_latency);
     const auto& neuron = optional_map(core, "neuron");
     config.core.default_threshold = static_cast<float>(yaml::get_double(neuron, "threshold", 1.0));
     config.core.default_leak = static_cast<float>(yaml::get_double(neuron, "leak", 1.0));
@@ -195,6 +200,11 @@ HardwareConfig HardwareConfig::load(const std::string& path) {
         energy, "synapse_crossbar", config.energy.synapse_pj);
     config.energy.soma_update_pj = yaml::get_double(energy, "soma_update", 0.0);
     config.energy.soma_fire_pj = yaml::get_double(energy, "soma_fire", 0.0);
+    const auto& attention_energy = optional_map(energy, "attention");
+    config.energy.qk_attention_pj = yaml::get_double(
+        attention_energy, "qk_process", config.energy.dense_synapse_pj);
+    config.energy.qkv_attention_pj = yaml::get_double(
+        attention_energy, "qkv_process", config.energy.dense_synapse_pj);
     config.validate();
     return config;
 }

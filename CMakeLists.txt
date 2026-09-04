@@ -15,6 +15,7 @@ add_library(soma_sim_lib
     simulator/src/config/mapping_config.cpp
     simulator/src/runtime/npz.cpp
     simulator/src/runtime/weight_store.cpp
+    simulator/src/runtime/incremental_spike_matmul.cpp
     simulator/src/runtime/spatial_template.cpp
     simulator/src/sim/spike_queue.cpp
     simulator/src/sim/stats.cpp

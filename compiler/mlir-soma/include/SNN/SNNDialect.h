@@ -28,6 +28,36 @@ public:
   SpikeEncoding getEncoding() const { return getImpl()->encoding; }
 };
 
+class WrappedTypeStorage : public mlir::TypeStorage {
+public:
+  using KeyTy = mlir::Type;
+  explicit WrappedTypeStorage(mlir::Type type) : type(type) {}
+  bool operator==(const KeyTy &key) const { return key == type; }
+  static WrappedTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
+                                       const KeyTy &key) {
+    return new (allocator.allocate<WrappedTypeStorage>()) WrappedTypeStorage(key);
+  }
+  mlir::Type type;
+};
+
+class VoltageType : public mlir::Type::TypeBase<VoltageType, mlir::Type,
+                                                 WrappedTypeStorage> {
+public:
+  static constexpr llvm::StringLiteral name = "snn.voltage";
+  using Base::Base;
+  static VoltageType get(mlir::MLIRContext *context, mlir::Type elementType);
+  mlir::Type getElementType() const { return getImpl()->type; }
+};
+
+class StateType : public mlir::Type::TypeBase<StateType, mlir::Type,
+                                               WrappedTypeStorage> {
+public:
+  static constexpr llvm::StringLiteral name = "snn.state";
+  using Base::Base;
+  static StateType get(mlir::MLIRContext *context, mlir::Type payloadType);
+  mlir::Type getPayloadType() const { return getImpl()->type; }
+};
+
 class SNNDialect : public mlir::Dialect {
 public:
   explicit SNNDialect(mlir::MLIRContext *context);

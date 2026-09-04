@@ -1,0 +1,404 @@
+mapping:
+  model: vit_block00_nir_derived
+  flush_timesteps: 22
+  signed_firing_trace: true
+  layers:
+    - id: input
+      op: input
+      pe: 0
+      core: 0
+      router: 0
+      neurons: 8192
+      output_channels: 128
+      virtual_input: true
+    - id: norm1_IF
+      op: linear
+      pe: 2
+      core: 0
+      router: 2
+      neurons: 8192
+      output_channels: 128
+      source_neurons: 8192
+      weight_prefix: norm1_IF
+      state_start_timestep: 2
+      neuron_model: st_bif
+      leak: 1
+      threshold: 909.0
+      tracer_min: -7
+      tracer_max: 7
+      aggregate_core_count: 8
+    - id: k_IF
+      op: linear
+      pe: 4
+      core: 0
+      router: 4
+      neurons: 8192
+      output_channels: 128
+      source_neurons: 8192
+      weight_prefix: k_IF
+      state_start_timestep: 3
+      neuron_model: st_bif
+      leak: 1
+      threshold: 305.0
+      tracer_min: -7
+      tracer_max: 7
+      aggregate_core_count: 8
+    - id: q_IF
+      op: linear
+      pe: 6
+      core: 0
+      router: 6
+      neurons: 8192
+      output_channels: 128
+      source_neurons: 8192
+      weight_prefix: q_IF
+      state_start_timestep: 3
+      neuron_model: st_bif
+      leak: 1
+      threshold: 751.0
+      tracer_min: -7
+      tracer_max: 7
+      aggregate_core_count: 8
+    - id: v_IF
+      op: linear
+      pe: 8
+      core: 0
+      router: 8
+      neurons: 8192
+      output_channels: 128
+      source_neurons: 8192
+      weight_prefix: v_IF
+      state_start_timestep: 3
+      neuron_model: st_bif
+      leak: 1
+      threshold: 640.0
+      tracer_min: -7
+      tracer_max: 7
+      aggregate_core_count: 8
+    - id: qk_multi_IF
+      op: linear
+      pe: 10
+      core: 0
+      router: 10
+      neurons: 8192
+      output_channels: 64
+      source_neurons: 8192
+      weight_prefix: qk_multi_IF
+      state_start_timestep: 4
+      neuron_model: st_bif
+      leak: 1
+      threshold: 183.0
+      tracer_min: 0
+      tracer_max: 7
+      aggregate_core_count: 8
+      operator_type: incremental_spike_matmul
+      attention_kind: qk
+      attention_heads: 2
+      attention_rows: 64
+      attention_reduction: 64
+      attention_columns: 64
+      attention_output_layout: head_row_column
+      attention_accumulation_scale: 2
+    - id: qkv_multi_IF
+      op: linear
+      pe: 12
+      core: 0
+      router: 12
+      neurons: 8192
+      output_channels: 128
+      source_neurons: 8192
+      weight_prefix: qkv_multi_IF
+      state_start_timestep: 5
+      neuron_model: st_bif
+      leak: 1
+      threshold: 1017.0
+      tracer_min: -7
+      tracer_max: 7
+      aggregate_core_count: 8
+      operator_type: incremental_spike_matmul
+      attention_kind: qkv
+      attention_heads: 2
+      attention_rows: 64
+      attention_reduction: 64
+      attention_columns: 64
+      attention_output_layout: row_head_column
+      attention_accumulation_scale: 32
+    - id: proj_IF
+      op: linear
+      pe: 14
+      core: 0
+      router: 14
+      neurons: 8192
+      output_channels: 128
+      source_neurons: 8192
+      weight_prefix: proj_IF
+      state_start_timestep: 6
+      neuron_model: st_bif
+      leak: 1
+      threshold: 154.0
+      tracer_min: -7
+      tracer_max: 7
+      aggregate_core_count: 8
+    - id: residual_add1_IF
+      op: linear
+      pe: 16
+      core: 0
+      router: 16
+      neurons: 8192
+      output_channels: 128
+      source_neurons: 8192
+      weight_prefix: residual_add1_IF
+      state_start_timestep: 7
+      neuron_model: st_bif
+      leak: 1
+      threshold: 1017.0
+      tracer_min: -7
+      tracer_max: 7
+      aggregate_core_count: 8
+    - id: norm2_IF
+      op: linear
+      pe: 18
+      core: 0
+      router: 18
+      neurons: 8192
+      output_channels: 128
+      source_neurons: 8192
+      weight_prefix: norm2_IF
+      state_start_timestep: 8
+      neuron_model: st_bif
+      leak: 1
+      threshold: 895.0
+      tracer_min: -7
+      tracer_max: 7
+      aggregate_core_count: 8
+    - id: fc1_IF
+      op: linear
+      pe: 20
+      core: 0
+      router: 20
+      neurons: 32768
+      output_channels: 512
+      source_neurons: 8192
+      weight_prefix: fc1_IF
+      state_start_timestep: 9
+      neuron_model: st_bif
+      leak: 1
+      threshold: 851.0
+      tracer_min: 0
+      tracer_max: 7
+      aggregate_core_count: 32
+    - id: fc2_IF
+      op: linear
+      pe: 28
+      core: 0
+      router: 28
+      neurons: 8192
+      output_channels: 128
+      source_neurons: 8192
+      weight_prefix: fc2_IF
+      state_start_timestep: 10
+      neuron_model: st_bif
+      leak: 1
+      threshold: 559.0
+      tracer_min: -7
+      tracer_max: 7
+      aggregate_core_count: 8
+    - id: residual_add2_IF
+      op: linear
+      pe: 30
+      core: 0
+      router: 30
+      neurons: 8192
+      output_channels: 128
+      source_neurons: 8192
+      weight_prefix: residual_add2_IF
+      state_start_timestep: 11
+      neuron_model: st_bif
+      leak: 1
+      threshold: 145.0
+      tracer_min: -7
+      tracer_max: 7
+      aggregate_core_count: 8
+    - id: norm1_IF_next
+      op: linear
+      pe: 32
+      core: 0
+      router: 32
+      neurons: 8192
+      output_channels: 128
+      source_neurons: 8192
+      weight_prefix: norm1_IF_next
+      state_start_timestep: 12
+      neuron_model: st_bif
+      leak: 1
+      threshold: 777.0
+      tracer_min: -7
+      tracer_max: 7
+      aggregate_core_count: 8
+  connections:
+    - from: input
+      to: norm1_IF
+      type: identity
+      hardware_type: identity
+      weight_prefix: norm1_IF
+      delay: 0
+    - from: input
+      to: residual_add1_IF
+      type: identity
+      hardware_type: identity
+      weight_prefix: residual_add1_IF__input1
+      operand: input1
+      delay: 5
+    - from: norm1_IF
+      to: q_IF
+      type: grouped_dense
+      hardware_type: dense
+      weight_prefix: q_IF
+      delay: 0
+    - from: norm1_IF
+      to: k_IF
+      type: grouped_dense
+      hardware_type: dense
+      weight_prefix: k_IF
+      delay: 0
+    - from: norm1_IF
+      to: v_IF
+      type: grouped_dense
+      hardware_type: dense
+      weight_prefix: v_IF
+      delay: 0
+    - from: q_IF
+      to: qk_multi_IF
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: qk_multi_IF
+      operand: lhs
+      operand_layout: row_head_reduction
+      delay: 0
+    - from: k_IF
+      to: qk_multi_IF
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: qk_multi_IF
+      operand: rhs
+      operand_layout: row_head_reduction
+      delay: 0
+    - from: qk_multi_IF
+      to: qkv_multi_IF
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: qkv_multi_IF
+      operand: lhs
+      operand_layout: head_row_reduction
+      delay: 0
+    - from: v_IF
+      to: qkv_multi_IF
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: qkv_multi_IF
+      operand: rhs
+      operand_layout: row_head_column
+      delay: 1
+    - from: qkv_multi_IF
+      to: proj_IF
+      type: grouped_dense
+      hardware_type: dense
+      weight_prefix: proj_IF
+      delay: 0
+    - from: proj_IF
+      to: residual_add1_IF
+      type: identity
+      hardware_type: identity
+      weight_prefix: residual_add1_IF__input2
+      operand: input2
+      delay: 0
+    - from: residual_add1_IF
+      to: norm2_IF
+      type: identity
+      hardware_type: identity
+      weight_prefix: norm2_IF
+      delay: 0
+    - from: residual_add1_IF
+      to: residual_add2_IF
+      type: identity
+      hardware_type: identity
+      weight_prefix: residual_add2_IF__input1
+      operand: input1
+      delay: 3
+    - from: norm2_IF
+      to: fc1_IF
+      type: grouped_dense
+      hardware_type: dense
+      weight_prefix: fc1_IF
+      delay: 0
+    - from: fc1_IF
+      to: fc2_IF
+      type: grouped_dense
+      hardware_type: dense
+      weight_prefix: fc2_IF
+      delay: 0
+    - from: fc2_IF
+      to: residual_add2_IF
+      type: identity
+      hardware_type: identity
+      weight_prefix: residual_add2_IF__input2
+      operand: input2
+      delay: 0
+    - from: residual_add2_IF
+      to: norm1_IF_next
+      type: identity
+      hardware_type: identity
+      weight_prefix: norm1_IF_next
+      delay: 0
+  routes:
+    - from: input
+      to: norm1_IF
+      routers: [0, 2]
+    - from: input
+      to: residual_add1_IF
+      routers: [0, 16]
+    - from: norm1_IF
+      to: q_IF
+      routers: [2, 6]
+    - from: norm1_IF
+      to: k_IF
+      routers: [2, 4]
+    - from: norm1_IF
+      to: v_IF
+      routers: [2, 8]
+    - from: q_IF
+      to: qk_multi_IF
+      routers: [6, 10]
+    - from: k_IF
+      to: qk_multi_IF
+      routers: [4, 10]
+    - from: qk_multi_IF
+      to: qkv_multi_IF
+      routers: [10, 12]
+    - from: v_IF
+      to: qkv_multi_IF
+      routers: [8, 12]
+    - from: qkv_multi_IF
+      to: proj_IF
+      routers: [12, 14]
+    - from: proj_IF
+      to: residual_add1_IF
+      routers: [14, 16]
+    - from: residual_add1_IF
+      to: norm2_IF
+      routers: [16, 18]
+    - from: residual_add1_IF
+      to: residual_add2_IF
+      routers: [16, 30]
+    - from: norm2_IF
+      to: fc1_IF
+      routers: [18, 20]
+    - from: fc1_IF
+      to: fc2_IF
+      routers: [20, 28]
+    - from: fc2_IF
+      to: residual_add2_IF
+      routers: [28, 30]
+    - from: residual_add2_IF
+      to: norm1_IF_next
+      routers: [30, 32]

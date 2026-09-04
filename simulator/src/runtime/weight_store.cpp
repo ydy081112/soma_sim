@@ -18,12 +18,25 @@ WeightStore WeightStore::load(const std::string& path, const MappingConfig& mapp
         weights.bias = archive.find(prefix + "_bias") == nullptr
                            ? std::vector<float>{}
                            : archive.at(prefix + "_bias").as_f32();
+        weights.threshold = archive.find(prefix + "_threshold") == nullptr
+                                ? std::vector<float>{}
+                                : archive.at(prefix + "_threshold").as_f32();
+        weights.initial_membrane = archive.find(prefix + "_initial_membrane") == nullptr
+                                       ? std::vector<float>{}
+                                       : archive.at(prefix + "_initial_membrane").as_f32();
         if (!weights.bias.empty() && weights.bias.size() != layer.output_channels &&
             weights.bias.size() != layer.neurons) {
             throw std::runtime_error(layer.id + ": bias shape 不匹配");
         }
+        if (!weights.threshold.empty() && weights.threshold.size() != 1 &&
+            weights.threshold.size() != layer.output_channels &&
+            weights.threshold.size() != layer.neurons)
+            throw std::runtime_error(layer.id + ": threshold shape 不匹配");
+        if (!weights.initial_membrane.empty() && weights.initial_membrane.size() != 1 &&
+            weights.initial_membrane.size() != layer.output_channels &&
+            weights.initial_membrane.size() != layer.neurons)
+            throw std::runtime_error(layer.id + ": initial membrane shape 不匹配");
         if (layer.op == LayerOp::Crossbar) {
-            weights.threshold = archive.at(prefix + "_threshold").as_f32();
             weights.active_neuron = archive.at(prefix + "_active").as_u8();
             weights.crossbar_axon_type = archive.at(prefix + "_axon_type").as_u8();
             weights.crossbar_neuron_weight = archive.at(prefix + "_neuron_weight").as_i16();
@@ -75,6 +88,19 @@ WeightStore WeightStore::load(const std::string& path, const MappingConfig& mapp
             if (weights.dense_weight.size() != source.neurons * layer.neurons) {
                 throw std::runtime_error(layer.id + ": dense [Cin,Cout] weight shape 不匹配");
             }
+        } else if (connection.type == ConnectionType::GroupedDense) {
+            weights.dense_weight = archive.at(prefix + "_weight").as_f32();
+            weights.group_input_channels = source.output_channels;
+            weights.group_output_channels = layer.output_channels;
+            if (source.output_channels == 0 || layer.output_channels == 0 ||
+                weights.dense_weight.size() !=
+                    static_cast<std::size_t>(source.output_channels) * layer.output_channels) {
+                throw std::runtime_error(layer.id + ": grouped dense [Cin,Cout] weight shape 不匹配");
+            }
+        } else if (connection.type == ConnectionType::AttentionOperand) {
+            // operand packet 只携带 signed spike；shadow 和增量算术位于目标 Core。
+            weights.attention_operand = connection.operand;
+            weights.attention_operand_layout = connection.operand_layout;
         } else if (connection.type == ConnectionType::Identity) {
             weights.identity_weight = archive.at(prefix + "_weight").as_f32();
             if (weights.identity_weight.size() != 1 &&

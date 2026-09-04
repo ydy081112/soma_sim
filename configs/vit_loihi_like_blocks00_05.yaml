@@ -1,0 +1,12 @@
+# split-residual-norm 六个 Transformer block 的端到端 NIR 回放配置。
+vit_blocks:
+  nir_directory: /home/ydy/compiler/mlir-attention/nir/full_blocks_until_silent_split_residual_norm
+  nir_pattern: block_{block:02d}_until_silent_t30_cls_free_split_residual_norm.nir
+  blocks: [0, 1, 2, 3, 4, 5]
+  input_tensor: block_input/metadata/output
+  mapping_strategy: adjacent_qkv_attention_then_projection_mlp
+  runtime_root: input/vit_blocks00_05
+  mapping_root: compiler/mapping_output/vit_blocks00_05
+  output_root: output/vit_blocks00_05
+architecture:
+  base: arch/hardware.yaml

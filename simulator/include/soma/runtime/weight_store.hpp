@@ -16,9 +16,14 @@ struct LayerWeights {
     std::uint64_t source_neurons = 0;
     SpatialTemplate spatial;
     std::vector<float> dense_weight;  // [Cin, Cout]
+    std::uint32_t group_input_channels = 0;
+    std::uint32_t group_output_channels = 0;
+    std::string attention_operand;
+    std::string attention_operand_layout;
     std::vector<float> identity_weight;  // scalar、逐 channel 或逐 neuron。
     std::vector<float> bias;
     std::vector<float> threshold;
+    std::vector<float> initial_membrane;
     std::vector<std::uint8_t> active_neuron;
     std::vector<std::uint8_t> crossbar_axon_type;
     std::vector<std::int16_t> crossbar_neuron_weight;  // [physical neuron, weight type]

@@ -19,8 +19,10 @@ LayerOp parse_op(const std::string& value) {
 ConnectionType parse_connection_type(const std::string& value) {
     if (value == "spatial") return ConnectionType::Spatial;
     if (value == "dense") return ConnectionType::Dense;
+    if (value == "grouped_dense") return ConnectionType::GroupedDense;
     if (value == "identity") return ConnectionType::Identity;
     if (value == "crossbar") return ConnectionType::Crossbar;
+    if (value == "attention_operand") return ConnectionType::AttentionOperand;
     throw std::runtime_error("不支持的 connection type: " + value);
 }
 
@@ -39,6 +41,8 @@ MappingConfig MappingConfig::load(const std::string& path) {
     const auto& mapping = root.at("mapping");
     MappingConfig config;
     config.model = yaml::get_string(mapping, "model", "unnamed");
+    config.flush_timesteps = u32(mapping, "flush_timesteps", 0);
+    config.signed_firing_trace = yaml::get_bool(mapping, "signed_firing_trace", false);
     const auto& layers = mapping.at("layers");
     if (!layers.is_sequence()) throw std::runtime_error("mapping.layers 必须是 sequence");
     // 提取yaml
@@ -65,6 +69,22 @@ MappingConfig MappingConfig::load(const std::string& path) {
         layer.weight_prefix = yaml::get_string(node, "weight_prefix", layer.id);
         layer.threshold = static_cast<float>(yaml::get_double(node, "threshold", 1.0));
         layer.leak = static_cast<float>(yaml::get_double(node, "leak", 1.0));
+        layer.neuron_model = yaml::get_string(node, "neuron_model", "lif");
+        layer.tracer_min = static_cast<std::int32_t>(yaml::get_double(node, "tracer_min", 0));
+        layer.tracer_max = static_cast<std::int32_t>(yaml::get_double(node, "tracer_max", 0));
+        layer.state_start_timestep = u32(node, "state_start_timestep", 0);
+        layer.operator_type = yaml::get_string(node, "operator_type", "standard");
+        layer.attention_kind = yaml::get_string(node, "attention_kind", "");
+        layer.attention_heads = u32(node, "attention_heads", 0);
+        layer.attention_rows = u32(node, "attention_rows", 0);
+        layer.attention_reduction = u32(node, "attention_reduction", 0);
+        layer.attention_columns = u32(node, "attention_columns", 0);
+        layer.attention_output_layout = yaml::get_string(
+            node, "attention_output_layout", "head_row_column");
+        layer.attention_accumulation_scale = static_cast<std::int32_t>(
+            yaml::get_double(node, "attention_accumulation_scale", 1));
+        layer.post_accumulation_rounding = yaml::get_string(
+            node, "post_accumulation_rounding", "none");
         layer.reset = yaml::get_string(node, "reset", "soft");
         layer.membrane_quantization_step = static_cast<float>(
             yaml::get_double(node, "membrane_quantization_step", 0.0));
@@ -92,6 +112,8 @@ MappingConfig MappingConfig::load(const std::string& path) {
         connection.weight_prefix = node.at("weight_prefix").as_string();
         connection.delay = u32(node, "delay", 0);
         connection.channelwise = yaml::get_bool(node, "channelwise", false);
+        connection.operand = yaml::get_string(node, "operand", "");
+        connection.operand_layout = yaml::get_string(node, "operand_layout", "flat_internal");
         config.connections.push_back(std::move(connection));
     }
 
@@ -150,6 +172,31 @@ void MappingConfig::validate(std::uint32_t router_count) const {
         }
         if (layer.membrane_quantization_step < 0.0F)
             throw std::runtime_error(layer.id + ": membrane_quantization_step 不得为负");
+        if (layer.neuron_model != "lif" && layer.neuron_model != "st_bif")
+            throw std::runtime_error(layer.id + ": neuron_model 仅支持 lif/st_bif");
+        if (layer.neuron_model == "st_bif" && layer.leak != 1.0F)
+            throw std::runtime_error(layer.id + ": ST-BIF 不允许 leak");
+        if (layer.neuron_model == "st_bif" && layer.tracer_min > layer.tracer_max)
+            throw std::runtime_error(layer.id + ": tracer range 非法");
+        if (layer.operator_type != "standard" &&
+            layer.operator_type != "incremental_spike_matmul")
+            throw std::runtime_error(layer.id + ": 不支持的 operator_type");
+        if (layer.operator_type == "incremental_spike_matmul" &&
+            (layer.attention_heads == 0 || layer.attention_rows == 0 ||
+             layer.attention_reduction == 0 || layer.attention_columns == 0 ||
+             layer.neurons != static_cast<std::uint64_t>(layer.attention_heads) *
+                                  layer.attention_rows * layer.attention_columns ||
+             (layer.attention_kind != "qk" && layer.attention_kind != "qkv")))
+            throw std::runtime_error(layer.id + ": incremental_spike_matmul shape/kind 非法");
+        if (layer.attention_output_layout != "head_row_column" &&
+            layer.attention_output_layout != "row_head_column")
+            throw std::runtime_error(layer.id + ": attention output layout 非法");
+        if (layer.operator_type == "incremental_spike_matmul" &&
+            layer.attention_accumulation_scale <= 0)
+            throw std::runtime_error(layer.id + ": attention scale 必须为正");
+        if (layer.post_accumulation_rounding != "none" &&
+            layer.post_accumulation_rounding != "nearest_even")
+            throw std::runtime_error(layer.id + ": post_accumulation_rounding 仅支持 none/nearest_even");
         if (layer.threshold_comparison != "greater" &&
             layer.threshold_comparison != "greater_equal")
             throw std::runtime_error(layer.id + ": threshold_comparison 仅支持 greater/greater_equal");
@@ -167,6 +214,16 @@ void MappingConfig::validate(std::uint32_t router_count) const {
         if (to.op == LayerOp::Input) throw std::runtime_error("connection 不能指向 input layer");
         if (connection.type == ConnectionType::Identity && from.neurons != to.neurons)
             throw std::runtime_error("identity connection 两端 neuron 数必须相同");
+        if (connection.type == ConnectionType::AttentionOperand &&
+            (to.operator_type != "incremental_spike_matmul" ||
+             (connection.operand != "lhs" && connection.operand != "rhs")))
+            throw std::runtime_error("attention_operand 必须指向 attention layer 并声明 lhs/rhs");
+        if (connection.type == ConnectionType::AttentionOperand &&
+            connection.operand_layout != "flat_internal" &&
+            connection.operand_layout != "row_head_reduction" &&
+            connection.operand_layout != "row_head_column" &&
+            connection.operand_layout != "head_row_reduction")
+            throw std::runtime_error("attention operand_layout 非法");
         (void)route(connection.from, connection.to);
     }
     for (const auto& route : routes) {
@@ -199,8 +256,10 @@ std::string to_string(ConnectionType type) {
     switch (type) {
         case ConnectionType::Spatial: return "spatial";
         case ConnectionType::Dense: return "dense";
+        case ConnectionType::GroupedDense: return "grouped_dense";
         case ConnectionType::Identity: return "identity";
         case ConnectionType::Crossbar: return "crossbar";
+        case ConnectionType::AttentionOperand: return "attention_operand";
     }
     return "unknown";
 }

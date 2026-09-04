@@ -7,8 +7,12 @@
 #include "soma/hw/soma.hpp"
 #include "soma/hw/tile.hpp"
 #include "soma/runtime/weight_store.hpp"
+#include "soma/runtime/incremental_spike_matmul.hpp"
 
 #include <cstdint>
+#include <memory>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace soma {
@@ -36,6 +40,8 @@ struct CoreNeuronProcessResult {
     std::uint64_t updated_neurons = 0;
     SimTime hw_soma_service_latency = 0;
     SimTime hw_resource_wait_latency = 0;
+    std::uint64_t attention_updates = 0;
+    SimTime hw_attention_service_latency = 0;
     std::vector<CoreFiringResult> firings;
 };
 
@@ -49,7 +55,9 @@ public:
                               SimTime hw_arrival_time,
                               const LayerWeights* connection_weights = nullptr,
                               std::uint32_t connection_delay = 0,
-                              std::uint32_t destination_axon = 0);
+                              std::uint32_t destination_axon = 0,
+                              const std::string& operand = "",
+                              const std::string& operand_layout = "flat_internal");
     CoreNeuronProcessResult process_timestep(std::uint32_t timestep, SimTime hw_arrival_time);
     const std::vector<float>& output_scores() const { return soma_.voltage(); }
     const std::vector<std::uint32_t>& output_fire_counts() const { return soma_.fire_count(); }
@@ -71,6 +79,11 @@ private:
     std::size_t next_buffer_ = 0;
     std::uint32_t processed_timestep_ = 0;
     std::vector<std::uint32_t> last_state_timestep_;
+    std::unique_ptr<IncrementalSpikeMatmul> attention_;
+    std::vector<std::unordered_map<std::size_t, std::int8_t>> attention_lhs_buffers_;
+    std::vector<std::unordered_map<std::size_t, std::int8_t>> attention_rhs_buffers_;
+    std::vector<std::uint8_t> attention_pending_buffers_;
+    bool state_started_ = false;
 };
 
 }  // namespace soma

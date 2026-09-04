@@ -1,0 +1,918 @@
+{
+  "nir": "/home/ydy/compiler/mlir-attention/nir/full_blocks_until_silent_split_residual_norm/block_04_until_silent_t30_cls_free_split_residual_norm.nir",
+  "input_tensor": "block_input/metadata/output",
+  "input_layout": "[T,B,token,embedding]",
+  "input_shape": [
+    30,
+    1,
+    64,
+    128
+  ],
+  "virtual_input_neurons": 8192,
+  "edges": [
+    [
+      "input",
+      "norm1_IF"
+    ],
+    [
+      "input",
+      "residual_add1_IF"
+    ],
+    [
+      "norm1_IF",
+      "q_IF"
+    ],
+    [
+      "norm1_IF",
+      "k_IF"
+    ],
+    [
+      "norm1_IF",
+      "v_IF"
+    ],
+    [
+      "q_IF",
+      "qk_multi_IF"
+    ],
+    [
+      "k_IF",
+      "qk_multi_IF"
+    ],
+    [
+      "qk_multi_IF",
+      "qkv_multi_IF"
+    ],
+    [
+      "v_IF",
+      "qkv_multi_IF"
+    ],
+    [
+      "qkv_multi_IF",
+      "proj_IF"
+    ],
+    [
+      "proj_IF",
+      "residual_add1_IF"
+    ],
+    [
+      "residual_add1_IF",
+      "norm2_IF"
+    ],
+    [
+      "residual_add1_IF",
+      "residual_add2_IF"
+    ],
+    [
+      "norm2_IF",
+      "fc1_IF"
+    ],
+    [
+      "fc1_IF",
+      "fc2_IF"
+    ],
+    [
+      "fc2_IF",
+      "residual_add2_IF"
+    ],
+    [
+      "residual_add2_IF",
+      "norm1_IF_next"
+    ]
+  ],
+  "nodes": {
+    "block_input": {
+      "type": "b'Input'",
+      "datasets": {
+        "output": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        }
+      }
+    },
+    "fc1_IF": {
+      "type": "b'Input'",
+      "datasets": {
+        "bias": {
+          "shape": [
+            512
+          ],
+          "dtype": "int16"
+        },
+        "input": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "multiplier": {
+          "shape": [
+            1
+          ],
+          "dtype": "int16"
+        },
+        "output": {
+          "shape": [
+            30,
+            1,
+            64,
+            512
+          ],
+          "dtype": "int8"
+        },
+        "shifter": {
+          "shape": [
+            1,
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_max": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_min": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "weight": {
+          "shape": [
+            512,
+            128
+          ],
+          "dtype": "int8"
+        }
+      }
+    },
+    "fc2_IF": {
+      "type": "b'Input'",
+      "datasets": {
+        "bias": {
+          "shape": [
+            128
+          ],
+          "dtype": "int16"
+        },
+        "input": {
+          "shape": [
+            30,
+            1,
+            64,
+            512
+          ],
+          "dtype": "int8"
+        },
+        "multiplier": {
+          "shape": [
+            1
+          ],
+          "dtype": "int16"
+        },
+        "output": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "shifter": {
+          "shape": [
+            1,
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_max": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_min": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "weight": {
+          "shape": [
+            128,
+            512
+          ],
+          "dtype": "int8"
+        }
+      }
+    },
+    "k_IF": {
+      "type": "b'Input'",
+      "datasets": {
+        "bias": {
+          "shape": [
+            128
+          ],
+          "dtype": "int16"
+        },
+        "input": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "multiplier": {
+          "shape": [
+            1
+          ],
+          "dtype": "int16"
+        },
+        "output": {
+          "shape": [
+            30,
+            1,
+            2,
+            64,
+            64
+          ],
+          "dtype": "int8"
+        },
+        "shifter": {
+          "shape": [
+            1,
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_max": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_min": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "weight": {
+          "shape": [
+            128,
+            128
+          ],
+          "dtype": "int8"
+        }
+      }
+    },
+    "norm1_IF": {
+      "type": "b'Input'",
+      "datasets": {
+        "bias": {
+          "shape": [
+            128
+          ],
+          "dtype": "int16"
+        },
+        "input": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "multiplier": {
+          "shape": [
+            128
+          ],
+          "dtype": "int16"
+        },
+        "output": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "shifter": {
+          "shape": [
+            1,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "tracer_max": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_min": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "weight": {
+          "shape": [
+            128
+          ],
+          "dtype": "int8"
+        }
+      }
+    },
+    "norm1_IF_next": {
+      "type": "b'Input'",
+      "datasets": {
+        "bias": {
+          "shape": [
+            128
+          ],
+          "dtype": "int16"
+        },
+        "input": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "multiplier": {
+          "shape": [
+            128
+          ],
+          "dtype": "int16"
+        },
+        "output": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "shifter": {
+          "shape": [
+            1,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "tracer_max": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_min": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "weight": {
+          "shape": [
+            128
+          ],
+          "dtype": "int8"
+        }
+      }
+    },
+    "norm2_IF": {
+      "type": "b'Input'",
+      "datasets": {
+        "bias": {
+          "shape": [
+            128
+          ],
+          "dtype": "int16"
+        },
+        "input": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "multiplier": {
+          "shape": [
+            128
+          ],
+          "dtype": "int16"
+        },
+        "output": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "shifter": {
+          "shape": [
+            1,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "tracer_max": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_min": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "weight": {
+          "shape": [
+            128
+          ],
+          "dtype": "int8"
+        }
+      }
+    },
+    "proj_IF": {
+      "type": "b'Input'",
+      "datasets": {
+        "bias": {
+          "shape": [
+            128
+          ],
+          "dtype": "int16"
+        },
+        "input": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "multiplier": {
+          "shape": [
+            1
+          ],
+          "dtype": "int16"
+        },
+        "output": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "shifter": {
+          "shape": [
+            1,
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_max": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_min": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "weight": {
+          "shape": [
+            128,
+            128
+          ],
+          "dtype": "int8"
+        }
+      }
+    },
+    "q_IF": {
+      "type": "b'Input'",
+      "datasets": {
+        "bias": {
+          "shape": [
+            128
+          ],
+          "dtype": "int16"
+        },
+        "input": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "multiplier": {
+          "shape": [
+            1
+          ],
+          "dtype": "int16"
+        },
+        "output": {
+          "shape": [
+            30,
+            1,
+            2,
+            64,
+            64
+          ],
+          "dtype": "int8"
+        },
+        "shifter": {
+          "shape": [
+            1,
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_max": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_min": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "weight": {
+          "shape": [
+            128,
+            128
+          ],
+          "dtype": "int8"
+        }
+      }
+    },
+    "qk_multi_IF": {
+      "type": "b'Input'",
+      "datasets": {
+        "input": {
+          "shape": [
+            30,
+            2,
+            1,
+            2,
+            64,
+            64
+          ],
+          "dtype": "int8"
+        },
+        "multiplier": {
+          "shape": [
+            1
+          ],
+          "dtype": "int16"
+        },
+        "output": {
+          "shape": [
+            30,
+            1,
+            2,
+            64,
+            64
+          ],
+          "dtype": "int8"
+        },
+        "shifter": {
+          "shape": [
+            2,
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_max": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_min": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        }
+      }
+    },
+    "qkv_multi_IF": {
+      "type": "b'Input'",
+      "datasets": {
+        "input": {
+          "qk_multi_IF": {
+            "shape": [
+              30,
+              1,
+              2,
+              64,
+              64
+            ],
+            "dtype": "int8"
+          },
+          "v_IF": {
+            "shape": [
+              30,
+              1,
+              2,
+              64,
+              64
+            ],
+            "dtype": "int8"
+          }
+        },
+        "multiplier": {
+          "shape": [
+            1
+          ],
+          "dtype": "int16"
+        },
+        "output": {
+          "shape": [
+            30,
+            1,
+            2,
+            64,
+            64
+          ],
+          "dtype": "int8"
+        },
+        "shifter": {
+          "shape": [
+            2,
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_max": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_min": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        }
+      }
+    },
+    "residual_add1_IF": {
+      "type": "b'Input'",
+      "datasets": {
+        "input1": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "input2": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "multiplier": {
+          "shape": [
+            1
+          ],
+          "dtype": "int16"
+        },
+        "output": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "shifter1": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "shifter2": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_max": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_min": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        }
+      }
+    },
+    "residual_add2_IF": {
+      "type": "b'Input'",
+      "datasets": {
+        "input1": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "input2": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "multiplier": {
+          "shape": [
+            1
+          ],
+          "dtype": "int16"
+        },
+        "output": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "shifter1": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "shifter2": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_max": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_min": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        }
+      }
+    },
+    "v_IF": {
+      "type": "b'Input'",
+      "datasets": {
+        "bias": {
+          "shape": [
+            128
+          ],
+          "dtype": "int16"
+        },
+        "input": {
+          "shape": [
+            30,
+            1,
+            64,
+            128
+          ],
+          "dtype": "int8"
+        },
+        "multiplier": {
+          "shape": [
+            1
+          ],
+          "dtype": "int16"
+        },
+        "output": {
+          "shape": [
+            30,
+            1,
+            2,
+            64,
+            64
+          ],
+          "dtype": "int8"
+        },
+        "shifter": {
+          "shape": [
+            1,
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_max": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "tracer_min": {
+          "shape": [
+            1
+          ],
+          "dtype": "int8"
+        },
+        "weight": {
+          "shape": [
+            128,
+            128
+          ],
+          "dtype": "int8"
+        }
+      }
+    }
+  },
+  "residual": {
+    "residual_add1_IF": {
+      "operands": {
+        "input1": {
+          "source": "input",
+          "shift": 10,
+          "weight": 1024,
+          "delay": 5
+        },
+        "input2": {
+          "source": "proj_IF",
+          "shift": 8,
+          "weight": 256,
+          "delay": 0
+        }
+      }
+    },
+    "residual_add2_IF": {
+      "operands": {
+        "input1": {
+          "source": "residual_add1_IF",
+          "shift": 7,
+          "weight": 128,
+          "delay": 3
+        },
+        "input2": {
+          "source": "fc2_IF",
+          "shift": 5,
+          "weight": 32,
+          "delay": 0
+        }
+      }
+    }
+  }
+}

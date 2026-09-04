@@ -22,5 +22,9 @@ struct CanonicalizePass final : mlir::PassWrapper<CanonicalizePass, mlir::Operat
   void runOnOperation() override { mlir::RewritePatternSet patterns(&getContext()); patterns.add<MergeRescale>(&getContext()); if (failed(mlir::applyPatternsGreedily(getOperation(), std::move(patterns)))) signalPassFailure(); }
 };
 } // namespace
-void registerSNNOpPasses() { mlir::PassRegistration<CanonicalizePass>(); }
+void registerSNNOpPasses() {
+  mlir::PassRegistration<CanonicalizePass>();
+  registerModelNeuronFusionPass();
+  registerDeadNeuronOutEliminatePass();
+}
 } // namespace snn_op

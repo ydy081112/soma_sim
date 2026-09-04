@@ -21,7 +21,18 @@ public:
             update(source_neuron, value * weights.identity_weight.at(wi));
             return 1;
         }
-        if (weights.connection_type == ConnectionType::Dense || weights.op == LayerOp::Linear) {
+        if (weights.connection_type == ConnectionType::GroupedDense) {
+            const auto group = source_neuron / weights.group_input_channels;
+            const auto source_channel = source_neuron % weights.group_input_channels;
+            const auto base = source_channel * weights.group_output_channels;
+            const auto destination_base = group * weights.group_output_channels;
+            for (std::uint32_t channel = 0; channel < weights.group_output_channels; ++channel)
+                update(destination_base + channel, value * weights.dense_weight[base + channel]);
+            return weights.group_output_channels;
+        }
+        if (weights.connection_type == ConnectionType::AttentionOperand) return 0;
+        if (weights.connection_type == ConnectionType::Dense ||
+            (weights.op == LayerOp::Linear && !weights.dense_weight.empty())) {
             // source-major [Cin,Cout] 让一个 source spike 顺序读取一整行权重。
             const auto source_neurons = weights.dense_weight.size() / destination_neurons;
             if (source_neuron >= source_neurons) throw std::runtime_error("dense source neuron 越界");
@@ -56,7 +67,69 @@ public:
             visit(static_cast<std::uint32_t>(physical / max_neurons_per_core));
             return;
         }
-        if (weights.connection_type == ConnectionType::Dense || weights.op == LayerOp::Linear) {
+        if (weights.connection_type == ConnectionType::GroupedDense) {
+            const auto group = source_neuron / weights.group_input_channels;
+            const auto logical_begin = group * weights.group_output_channels;
+            const auto logical_end = logical_begin + weights.group_output_channels;
+            std::vector<std::uint8_t> touched(partition_count, 0);
+            for (auto logical = logical_begin; logical < logical_end; ++logical) {
+                const auto physical = destination.physical_neuron_index(logical);
+                touched.at(static_cast<std::size_t>(physical / max_neurons_per_core)) = 1;
+            }
+            for (std::uint32_t partition = 0; partition < partition_count; ++partition)
+                if (touched[partition]) visit(partition);
+            return;
+        }
+        if (weights.connection_type == ConnectionType::AttentionOperand) {
+            const auto heads = static_cast<std::uint64_t>(destination.attention_heads);
+            const auto rows = static_cast<std::uint64_t>(destination.attention_rows);
+            const auto reduction = static_cast<std::uint64_t>(destination.attention_reduction);
+            const auto columns = static_cast<std::uint64_t>(destination.attention_columns);
+            std::uint64_t head = 0;
+            std::uint64_t major = 0;  // lhs 为 row，rhs 为 column。
+            if (weights.attention_operand == "lhs") {
+                if (weights.attention_operand_layout == "row_head_reduction") {
+                    major = source_neuron / (heads * reduction);
+                    head = (source_neuron / reduction) % heads;
+                } else if (weights.attention_operand_layout == "head_row_reduction") {
+                    head = source_neuron / (rows * reduction);
+                    major = (source_neuron / reduction) % rows;
+                } else {
+                    throw std::runtime_error("不支持的 attention lhs operand layout");
+                }
+                if (head >= heads || major >= rows) throw std::runtime_error("attention lhs source 越界");
+            } else {
+                if (weights.attention_operand_layout == "row_head_reduction") {
+                    major = source_neuron / (heads * reduction);
+                    head = (source_neuron / reduction) % heads;
+                } else if (weights.attention_operand_layout == "row_head_column") {
+                    head = (source_neuron / columns) % heads;
+                    major = source_neuron % columns;
+                } else {
+                    throw std::runtime_error("不支持的 attention rhs operand layout");
+                }
+                if (head >= heads || major >= columns) throw std::runtime_error("attention rhs source 越界");
+            }
+
+            std::vector<std::uint8_t> touched(partition_count, 0);
+            auto mark = [&](std::uint64_t row, std::uint64_t column) {
+                const auto logical = destination.attention_output_layout == "row_head_column"
+                                         ? (row * heads + head) * columns + column
+                                         : (head * rows + row) * columns + column;
+                const auto physical = destination.physical_neuron_index(logical);
+                touched.at(static_cast<std::size_t>(physical / max_neurons_per_core)) = 1;
+            };
+            if (weights.attention_operand == "lhs") {
+                for (std::uint64_t column = 0; column < columns; ++column) mark(major, column);
+            } else {
+                for (std::uint64_t row = 0; row < rows; ++row) mark(row, major);
+            }
+            for (std::uint32_t partition = 0; partition < partition_count; ++partition)
+                if (touched[partition]) visit(partition);
+            return;
+        }
+        if (weights.connection_type == ConnectionType::Dense ||
+            (weights.op == LayerOp::Linear && !weights.dense_weight.empty())) {
             for (std::uint32_t partition = 0; partition < partition_count; ++partition) visit(partition);
             return;
         }
@@ -135,7 +208,25 @@ public:
             }
             return 0;
         }
-        if (weights.connection_type == ConnectionType::Dense || weights.op == LayerOp::Linear) {
+        if (weights.connection_type == ConnectionType::GroupedDense) {
+            if (source_neuron >= weights.source_neurons) throw std::runtime_error("grouped dense source neuron 越界");
+            const auto group = source_neuron / weights.group_input_channels;
+            const auto source_channel = source_neuron % weights.group_input_channels;
+            const auto logical_begin = group * weights.group_output_channels;
+            const auto logical_end = logical_begin + weights.group_output_channels;
+            const auto base = source_channel * weights.group_output_channels;
+            for (auto logical = logical_begin; logical < logical_end; ++logical) {
+                const auto physical = destination.physical_neuron_index(logical);
+                if (physical_begin <= physical && physical < physical_end) {
+                    update(logical, value * weights.dense_weight[base + logical - logical_begin]);
+                    ++updates;
+                }
+            }
+            return updates;
+        }
+        if (weights.connection_type == ConnectionType::AttentionOperand) return 0;
+        if (weights.connection_type == ConnectionType::Dense ||
+            (weights.op == LayerOp::Linear && !weights.dense_weight.empty())) {
             const auto configured_sources = weights.source_neurons == 0
                                                 ? destination.source_neurons
                                                 : weights.source_neurons;

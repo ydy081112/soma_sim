@@ -18,6 +18,7 @@ struct LayerStats {
     std::uint64_t packets = 0;
     std::uint64_t noc_hops = 0;
     std::uint64_t synaptic_updates = 0;
+    std::uint64_t attention_updates = 0;
     double host_latency_s = 0.0;
 };
 
@@ -28,11 +29,13 @@ struct TimestepStats {
     std::uint64_t packets = 0;
     std::uint64_t noc_hops = 0;
     std::uint64_t synaptic_updates = 0;
+    std::uint64_t attention_updates = 0;
     double host_latency_s = 0.0;
     SimTime hw_start_time = 0;
     SimTime hw_end_time = 0;
     SimTime soma_service_hw_latency = 0;
     SimTime synapse_service_hw_latency = 0;
+    SimTime attention_service_hw_latency = 0;
     SimTime noc_traversal_hw_latency = 0;
     SimTime noc_congestion_hw_latency = 0;
     SimTime synchronization_hw_latency = 0;
@@ -44,6 +47,7 @@ struct BreakdownStats {
     SimTime pe_compute_hw_latency = 0;
     SimTime soma_service_hw_latency = 0;
     SimTime synapse_service_hw_latency = 0;
+    SimTime attention_service_hw_latency = 0;
     SimTime noc_traversal_hw_latency = 0;
     SimTime router_congestion_hw_latency = 0;
     SimTime link_busy_hw_latency = 0;
@@ -64,6 +68,8 @@ struct FiringTraceRecord {
     std::uint32_t timestep = 0;
     std::uint32_t core = 0;
     std::uint32_t local_neuron = 0;
+    std::size_t layer = 0;
+    float value = 1.0F;
 };
 
 class Statistics {
@@ -80,7 +86,7 @@ public:
     void record_emit(std::size_t layer, std::uint32_t timestep, SimTime hw_current_time);
     void record_neuron_fire(std::size_t layer, std::uint32_t timestep,
                             SimTime hw_current_time, std::uint32_t global_core,
-                            std::uint32_t local_neuron);
+                            std::uint32_t local_neuron, float value);
     void record_neuron_processing(std::size_t layer, std::uint32_t timestep,
                                   SimTime hw_current_time);
     void record_host_latency(std::size_t layer, std::uint32_t timestep, double host_latency_s);
@@ -91,6 +97,9 @@ public:
                                 SimTime total_hw_latency);
     void add_soma_hw_latency(std::uint32_t timestep, SimTime service_hw_latency,
                              SimTime total_hw_latency);
+    void add_attention(std::size_t layer, std::uint32_t timestep,
+                       std::uint64_t updates, SimTime service_hw_latency,
+                       const std::string& kind);
     void add_data_energy(const NocTiming& noc, std::uint64_t updates,
                          ConnectionType connection_type);
     void add_neuron_energy(std::uint64_t updated_neurons);
@@ -120,6 +129,7 @@ private:
     std::uint64_t packets_ = 0;
     std::uint64_t noc_hops_ = 0;
     std::uint64_t synaptic_updates_ = 0;
+    std::uint64_t attention_updates_ = 0;
     std::uint64_t physical_core_count_ = 0;
     std::uint64_t mapped_tile_count_ = 0;
     double host_latency_s_ = 0.0;

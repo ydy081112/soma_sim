@@ -29,6 +29,8 @@ struct EnergyConfig {
     double crossbar_synapse_pj = 0.0;
     double soma_update_pj = 0.0;
     double soma_fire_pj = 0.0;
+    double qk_attention_pj = 0.0;
+    double qkv_attention_pj = 0.0;
 };
 
 struct HardwareConfig {
@@ -107,6 +109,8 @@ struct HardwareConfig {
         SimTime soma_access_hw_latency = 0;
         SimTime soma_update_hw_latency = 0;
         SimTime soma_fire_hw_latency = 0;
+        SimTime qk_attention_hw_latency = 0;
+        SimTime qkv_attention_hw_latency = 0;
         float default_threshold = 1.0F;
         float default_leak = 1.0F;
         std::string reset = "soft";

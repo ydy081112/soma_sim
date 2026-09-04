@@ -117,6 +117,11 @@ void Simulator::process_neurons(std::uint32_t timestep, SimTime hw_start_time) {
             stats_.add_soma_hw_latency(timestep, result.hw_soma_service_latency,
                                        result.hw_compute_latency);
             stats_.add_neuron_energy(result.updated_neurons);
+            if (result.attention_updates != 0) {
+                stats_.add_attention(layer.index, timestep, result.attention_updates,
+                                     result.hw_attention_service_latency,
+                                     layer.attention_kind);
+            }
             stats_.record_neuron_processing(layer.index, timestep, result.hw_finish_time);
             pending_firings.emplace_back(layer.index, std::move(result.firings));
         }
@@ -134,7 +139,8 @@ void Simulator::push_firings(std::size_t layer_index, std::uint32_t timestep,
                              const std::vector<CoreFiringResult>& firings) {
     for (const auto& firing : firings) {
         stats_.record_neuron_fire(layer_index, timestep, firing.hw_finish_time,
-                                  firing.global_core, firing.local_neuron);
+                                  firing.global_core, firing.local_neuron,
+                                  firing.fired.value);
         stats_.add_fire_energy();
         if (mapping_.outgoing(layer_index).empty()) continue;
         enqueue_packets(layer_index, firing.fired.neuron, firing.fired.value, timestep,
@@ -265,7 +271,8 @@ void Simulator::process_data(Spike& spike) {
     const auto& connection = mapping_.connections.at(spike.connection);
     const auto receive = core.receive(spike.source_neuron, spike.value, spike.timestep,
                                       spike.current_time, &weights_.connection(spike.connection),
-                                      connection.delay, spike.destination_axon);
+                                      connection.delay, spike.destination_axon,
+                                      connection.operand, connection.operand_layout);
     spike.current_time = receive.hw_finish_time;
     const auto receive_service = receive.hw_axon_in_service_latency +
                                  receive.hw_synapse_service_latency;
@@ -326,7 +333,8 @@ SimulationResult Simulator::run_timestep_synchronization() {
     std::uint64_t events = 0;
     bool completed = true;
     SimTime next_timestep_hw_start = 0;
-    for (std::uint32_t timestep = 1; timestep <= input_.last_timestep; ++timestep) {
+    const auto final_timestep = input_.last_timestep + mapping_.flush_timesteps;
+    for (std::uint32_t timestep = 1; timestep <= final_timestep; ++timestep) {
         const auto timestep_host_start = std::chrono::steady_clock::now();
         if (options_.max_events != 0 && events >= options_.max_events) {
             completed = false;

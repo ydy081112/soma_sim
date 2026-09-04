@@ -13,18 +13,24 @@ SomaState::SomaState(std::size_t neurons, float threshold, float leak, std::stri
                      std::string threshold_comparison, std::string threshold_compare_mode,
                      std::vector<float> thresholds,
                      float membrane_min, float membrane_max,
-                     bool fire_on_positive_saturation)
-    : voltage_(neurons, 0.0F),
+                     bool fire_on_positive_saturation, std::string neuron_model,
+                     std::int32_t tracer_min, std::int32_t tracer_max,
+                     std::vector<float> initial_membrane)
+    : voltage_(initial_membrane.empty() ? std::vector<float>(neurons, 0.0F)
+                                        : std::move(initial_membrane)),
       threshold_(thresholds.empty() ? std::vector<float>(neurons, threshold)
                                     : std::move(thresholds)),
       fire_count_(neurons, 0),
+      tracer_(neurons, 0),
       leak_(leak), reset_(std::move(reset)), readout_(readout),
       membrane_quantization_step_(membrane_quantization_step),
       threshold_comparison_(std::move(threshold_comparison)),
       threshold_compare_mode_(std::move(threshold_compare_mode)),
       membrane_min_(membrane_min), membrane_max_(membrane_max),
-      fire_on_positive_saturation_(fire_on_positive_saturation) {
+      fire_on_positive_saturation_(fire_on_positive_saturation),
+      st_bif_(neuron_model == "st_bif"), tracer_min_(tracer_min), tracer_max_(tracer_max) {
     if (neurons == 0 || threshold <= 0.0F) throw std::runtime_error("SomaState 参数无效");
+    if (voltage_.size() != neurons) throw std::runtime_error("SomaState initial membrane shape 无效");
     if (threshold_.size() != neurons ||
         std::any_of(threshold_.begin(), threshold_.end(), [](float value) { return value < 0.0F; }))
         throw std::runtime_error("SomaState threshold array 无效");
@@ -36,6 +42,10 @@ SomaState::SomaState(std::size_t neurons, float threshold, float leak, std::stri
         threshold_compare_mode_ != "unsigned_promotion") {
         throw std::runtime_error("threshold compare mode 只支持 signed/unsigned_promotion");
     }
+    if (neuron_model != "lif" && neuron_model != "st_bif")
+        throw std::runtime_error("neuron model 只支持 lif/st_bif");
+    if (st_bif_ && (leak_ != 1.0F || tracer_min_ > tracer_max_))
+        throw std::runtime_error("ST-BIF leak/tracer 参数无效");
 }
 
 SomaNeuronResult SomaState::process_neuron(std::uint64_t neuron, float synaptic_input,
@@ -47,6 +57,7 @@ SomaNeuronResult SomaState::process_neuron(std::uint64_t neuron, float synaptic_
     result.updated = has_pending_input || bias != 0.0F || voltage_[index] != 0.0F;
     if (!result.updated) return result;
 
+    // ST-BIF 配置已强制 leak=1，因此保留 LIF 原有无分支热路径。
     voltage_[index] *= leak_;
     if (membrane_quantization_step_ > 0.0F) {
         voltage_[index] = std::trunc(voltage_[index] / membrane_quantization_step_) *
@@ -55,6 +66,17 @@ SomaNeuronResult SomaState::process_neuron(std::uint64_t neuron, float synaptic_
     voltage_[index] += synaptic_input + bias;
     const bool positive_saturation = voltage_[index] > membrane_max_;
     voltage_[index] = std::max(membrane_min_, std::min(membrane_max_, voltage_[index]));
+    if (st_bif_) {
+        const bool positive = voltage_[index] >= threshold_[index] && tracer_[index] < tracer_max_;
+        const bool negative = voltage_[index] < 0.0F && tracer_[index] > tracer_min_;
+        if (readout_ || (!positive && !negative)) return result;
+        const auto value = positive ? 1.0F : -1.0F;
+        voltage_[index] -= value * threshold_[index];
+        tracer_[index] += positive ? 1 : -1;
+        ++fire_count_[index];
+        result.fired = FiredNeuron{neuron, value};
+        return result;
+    }
     bool threshold_reached = false;
     if (threshold_compare_mode_ == "unsigned_promotion") {
         // 精确对应 C 中 int32 membrane 与 uint32 threshold 比较时的 usual arithmetic conversion。

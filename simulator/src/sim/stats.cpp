@@ -80,7 +80,7 @@ void Statistics::record_emit(std::size_t layer, std::uint32_t step, SimTime hw_c
 
 void Statistics::record_neuron_fire(std::size_t layer, std::uint32_t step,
                                     SimTime hw_current_time, std::uint32_t global_core,
-                                    std::uint32_t local_neuron) {
+                                    std::uint32_t local_neuron, float value) {
     record_emit(layer, step, hw_current_time);
     ++neuron_firings_;
     const auto reported_step = static_cast<std::size_t>(step) +
@@ -89,9 +89,10 @@ void Statistics::record_neuron_fire(std::size_t layer, std::uint32_t step,
         reported_neuron_firings_.resize(reported_step + 1, 0);
     }
     ++reported_neuron_firings_[reported_step];
-    if (hardware_.statistics.firing_trace) {
+    if (hardware_.statistics.firing_trace || mapping_.signed_firing_trace) {
         firing_trace_.push_back(FiringTraceRecord{
-            static_cast<std::uint32_t>(reported_step), global_core, local_neuron});
+            static_cast<std::uint32_t>(reported_step), global_core, local_neuron,
+            layer, value});
     }
     ++timestep(step).neuron_firings;
 }
@@ -140,6 +141,20 @@ void Statistics::add_soma_hw_latency(std::uint32_t step, SimTime service_hw_late
     timestep(step).soma_service_hw_latency += service_hw_latency;
 }
 
+void Statistics::add_attention(std::size_t layer, std::uint32_t step,
+                               std::uint64_t updates, SimTime service_hw_latency,
+                               const std::string& kind) {
+    attention_updates_ += updates;
+    layers_.at(layer).attention_updates += updates;
+    auto& metric = timestep(step);
+    metric.attention_updates += updates;
+    metric.attention_service_hw_latency += service_hw_latency;
+    breakdown_.attention_service_hw_latency += service_hw_latency;
+    const auto energy = kind == "qk" ? hardware_.energy.qk_attention_pj
+                                      : hardware_.energy.qkv_attention_pj;
+    energy_.synapse_pj += static_cast<double>(updates) * energy;
+}
+
 void Statistics::add_data_energy(const NocTiming& noc, std::uint64_t updates,
                                  ConnectionType connection_type) {
     // 通信能耗按方向 hop 计数，计算能耗按实际 synaptic update 计数。
@@ -153,7 +168,8 @@ void Statistics::add_data_energy(const NocTiming& noc, std::uint64_t updates,
                          static_cast<double>(updates) * hardware_.energy.sram_write_pj;
     const auto synapse_pj = connection_type == ConnectionType::Crossbar
                                 ? hardware_.energy.crossbar_synapse_pj
-                            : connection_type == ConnectionType::Dense
+                            : connection_type == ConnectionType::Dense ||
+                              connection_type == ConnectionType::GroupedDense
                                 ? hardware_.energy.dense_synapse_pj
                             : connection_type == ConnectionType::Identity
                                 ? hardware_.energy.identity_synapse_pj
@@ -189,6 +205,7 @@ void Statistics::write(const std::string& output_dir, const std::vector<float>& 
             << "  \"packets\": " << packets_ << ",\n"
             << "  \"noc_hops\": " << noc_hops_ << ",\n"
             << "  \"synaptic_updates\": " << synaptic_updates_ << ",\n"
+            << "  \"attention_updates\": " << attention_updates_ << ",\n"
             << "  \"host_latency_s\": " << host_latency_s_ << ",\n"
             << "  \"host_processed_spikes_per_sec\": "
             << host_rate(processed_spikes_, host_latency_s_) << ",\n"
@@ -201,6 +218,8 @@ void Statistics::write(const std::string& output_dir, const std::vector<float>& 
                    breakdown_.soma_service_hw_latency, hardware_.hw_cycle_time_ps) << ",\n"
             << "    \"synapse_service_cycles\": " << ceil_cycles(
                    breakdown_.synapse_service_hw_latency, hardware_.hw_cycle_time_ps) << ",\n"
+            << "    \"attention_service_cycles\": " << ceil_cycles(
+                   breakdown_.attention_service_hw_latency, hardware_.hw_cycle_time_ps) << ",\n"
             << "    \"noc_traversal_cycles\": " << ceil_cycles(
                    breakdown_.noc_traversal_hw_latency, hardware_.hw_cycle_time_ps) << ",\n"
             << "    \"router_congestion_cycles\": " << ceil_cycles(
@@ -230,22 +249,22 @@ void Statistics::write(const std::string& output_dir, const std::vector<float>& 
     summary << "\n}\n";
 
     std::ofstream layer_csv(std::filesystem::path(output_dir) / "layer_metrics.csv");
-    layer_csv << "layer_id,processed_spikes,emitted_spikes,packets,noc_hops,synaptic_updates,"
+    layer_csv << "layer_id,processed_spikes,emitted_spikes,packets,noc_hops,synaptic_updates,attention_updates,"
                  "host_latency_s,host_processed_spikes_per_sec\n";
     layer_csv << std::setprecision(12);
     for (std::size_t i = 0; i < layers_.size(); ++i) {
         const auto& metric = layers_[i];
         layer_csv << mapping_.layers[i].id << ',' << metric.processed_spikes << ','
                   << metric.emitted_spikes << ',' << metric.packets << ',' << metric.noc_hops << ','
-                  << metric.synaptic_updates << ','
+                  << metric.synaptic_updates << ',' << metric.attention_updates << ','
                   << metric.host_latency_s << ','
                   << host_rate(metric.processed_spikes, metric.host_latency_s) << '\n';
     }
 
     std::ofstream timestep_csv(std::filesystem::path(output_dir) / "timestep_metrics.csv");
-    timestep_csv << "timestep,processed_spikes,emitted_spikes,packets,noc_hops,synaptic_updates,"
+    timestep_csv << "timestep,processed_spikes,emitted_spikes,packets,noc_hops,synaptic_updates,attention_updates,"
                     "host_latency_s,host_processed_spikes_per_sec,hardware_latency_ps,"
-                    "hardware_end_time_ps,soma_service_cycles,synapse_service_cycles,"
+                    "hardware_end_time_ps,soma_service_cycles,synapse_service_cycles,attention_service_cycles,"
                     "noc_traversal_cycles,noc_congestion_cycles,timestep_synchronization_cycles\n";
     timestep_csv << std::setprecision(12);
     // timestep synchronization 的逻辑编号从 1 开始，不输出虚构的 timestep 0。
@@ -254,11 +273,13 @@ void Statistics::write(const std::string& output_dir, const std::vector<float>& 
         const auto& metric = timesteps_[i];
         timestep_csv << i << ',' << metric.processed_spikes << ',' << metric.emitted_spikes << ','
                      << metric.packets << ',' << metric.noc_hops << ',' << metric.synaptic_updates << ','
+                     << metric.attention_updates << ','
                      << metric.host_latency_s << ','
                      << host_rate(metric.processed_spikes, metric.host_latency_s) << ','
                      << (metric.hw_end_time - metric.hw_start_time) << ',' << metric.hw_end_time << ','
                      << ceil_cycles(metric.soma_service_hw_latency, hardware_.hw_cycle_time_ps) << ','
                      << ceil_cycles(metric.synapse_service_hw_latency, hardware_.hw_cycle_time_ps) << ','
+                     << ceil_cycles(metric.attention_service_hw_latency, hardware_.hw_cycle_time_ps) << ','
                      << ceil_cycles(metric.noc_traversal_hw_latency, hardware_.hw_cycle_time_ps) << ','
                      << ceil_cycles(metric.noc_congestion_hw_latency, hardware_.hw_cycle_time_ps) << ','
                      << ceil_cycles(metric.synchronization_hw_latency, hardware_.hw_cycle_time_ps) << '\n';
@@ -271,11 +292,17 @@ void Statistics::write(const std::string& output_dir, const std::vector<float>& 
         firing_csv << i << ',' << reported_neuron_firings_[i] << ','
                    << reported_neuron_firings_[i] << '\n';
     }
-    if (hardware_.statistics.firing_trace) {
+    if (hardware_.statistics.firing_trace || mapping_.signed_firing_trace) {
         std::ofstream firing_trace_csv(std::filesystem::path(output_dir) / "firing_trace.csv");
-        firing_trace_csv << "timestep,core,local_neuron\n";
+        firing_trace_csv << "timestep,layer_id,neuron,value,core,local_neuron\n";
         for (const auto& record : firing_trace_) {
-            firing_trace_csv << record.timestep << ',' << record.core << ','
+            const auto& layer = mapping_.layer(record.layer);
+            const auto global_physical = static_cast<std::uint64_t>(record.core -
+                (layer.pe * hardware_.core.cores_per_pe + layer.core)) *
+                hardware_.core.max_neurons + record.local_neuron;
+            firing_trace_csv << record.timestep << ',' << layer.id << ','
+                             << layer.logical_neuron_index(global_physical) << ','
+                             << record.value << ',' << record.core << ','
                              << record.local_neuron << '\n';
         }
     }

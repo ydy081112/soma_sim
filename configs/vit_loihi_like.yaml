@@ -1,0 +1,22 @@
+# ViT block00 的运行请求；路径和 block 选择由资产工具读取，禁止写入 node/shape 常量。
+vit:
+  nir_path: /home/ydy/compiler/mlir-attention/nir/full_blocks_until_silent_split_residual_norm/block_00_until_silent_t30_cls_free_split_residual_norm.nir
+  block: 0
+  input_tensor: block_input/metadata/output
+  mapping_strategy: adjacent_qkv_attention_then_projection_mlp
+  runtime_npz: input/vit_block00_runtime.npz
+  input_spikes: input/vit_block00_input_spike.csv
+  mapping: compiler/mapping_output/vit_block00_mapping.yaml
+  manifest: compiler/mapping_output/vit_block00_nir_manifest.json
+  output: output/vit_block00
+architecture:
+  base: arch/hardware.yaml
+  core_cx_state:
+    neuron_model: st_bif
+    sram_read_hardware_latency: 0 ps
+    sram_write_hardware_latency: 0 ps
+  attention:
+    qk_process_hardware_latency: 3.8 ns
+    qkv_process_hardware_latency: 3.8 ns
+    qk_process_energy_pj: 35.5
+    qkv_process_energy_pj: 35.5
