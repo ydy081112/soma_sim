@@ -8,7 +8,7 @@ architecture:
     # 五个 4096-Core chip 的 Core ID 连续放置；零时延配置下不假设片间物理延迟。
     rows: 64
     cols: 320
-    routing: static
+    routing: xy
     congestion_model: resource_table
     virtual_channels: 1
     input_buffer_depth: 1

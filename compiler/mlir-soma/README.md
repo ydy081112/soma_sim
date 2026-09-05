@@ -19,3 +19,11 @@ split-residual-norm NIR 的 `norm1_IF`、`norm1_IF_next`、`norm2_IF` 显式导�
 `build/bin/soma-opt --model-neuron-fusion --dead-neuron-out-eliminate --lower-snnop-to-snnexec input.mlir -o output.mlir`
 
 SNNExec 使用 `generic/state/sw/ss/mul/reduce/integrate/fire/yield`，以及共享的 `!snn.voltage<T>`、`!snn.state<...>` 类型。详细说明与验证结果见 `compiler/docs/SNNEXEC.md`。
+
+硬件侧 core-level IR 可由 `tools/hardware-yaml-to-arch.py --input ../../arch/hardware.yaml --output output/hardware.core.mlir` 导出；产物包含 module-level `noc.network` 与 `snn_arch.core_type` symbols。详细字段映射见 `compiler/docs/NOC_SNNARCH_CORE_LEVEL.md`。
+
+把 fused+DCE SNNOp 映射到 Core-level SNNArch：
+
+`build/bin/soma-opt --verify-each '--snnop-core-mapping=hardware-file=output/hardware.core.mlir' output/block_00_split_residual_norm.fused.dce.mlir -o output/block_00_split_residual_norm.core.mlir`
+
+pass 按非时间维 neuron population 和 `neuron_capacity` 分区，使用稳定 first-fit greedy placement；`*_core` 通过 Variadic SSA operand 直接接收所需 producer partitions，跨 Core 的每条 edge 分别插入 `noc.send_router`、`noc.recv_router`。详见 `compiler/docs/SNNOP_CORE_MAPPING.md`。

@@ -1,0 +1,10 @@
+architecture:
+  noc:
+    topology: mesh
+    rows: 8
+    cols: 8
+    routing: xy
+    link:
+      hardware_latency: 2 ns
+  core:
+    max_neurons: 1024

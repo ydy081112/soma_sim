@@ -9,7 +9,7 @@ architecture:
     topology: mesh
     rows: 128
     cols: 256
-    routing: static
+    routing: xy
     # 显式启用参考 detailed scheduler 对应的在线 route-density 回压。
     congestion_model: route_density
     virtual_channels: 1

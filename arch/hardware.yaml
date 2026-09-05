@@ -9,7 +9,7 @@ architecture:
     topology: mesh
     rows: 128
     cols: 256
-    routing: static
+    routing: xy
     # 保持 VGG16 的既有 destination-flow 时序路径。
     congestion_model: destination_flow
     virtual_channels: 1

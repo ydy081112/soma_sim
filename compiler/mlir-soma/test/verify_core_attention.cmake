@@ -1,0 +1,22 @@
+execute_process(
+  COMMAND "${SOMA_OPT}" --verify-each --snnop-core-mapping "${INPUT}"
+  RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE error)
+if(NOT result EQUAL 0)
+  message(FATAL_ERROR "attention core mapping failed: ${error}")
+endif()
+foreach(required "snn_arch.q_core" "snn_arch.k_core" "snn_arch.v_core"
+                 "snn_arch.qk_core" "snn_arch.qkv_core" "snn_arch.residual_core")
+  string(FIND "${output}" "${required}" position)
+  if(position EQUAL -1)
+    message(FATAL_ERROR "missing '${required}'")
+  endif()
+endforeach()
+string(FIND "${output}" "noc.send_router" send_position)
+string(FIND "${output}" "noc.recv_router" recv_position)
+if(NOT send_position EQUAL -1 OR NOT recv_position EQUAL -1)
+  message(FATAL_ERROR "same-core attention dependencies must not use NoC routers")
+endif()
+string(REGEX MATCH "%[0-9]+, %[0-9]+ = snn_arch\\.qk_core" separate_results "${output}")
+if(separate_results STREQUAL "")
+  message(FATAL_ERROR "qk spike/tracer results were not printed as separate SSA values")
+endif()

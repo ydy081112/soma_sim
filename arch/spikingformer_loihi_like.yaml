@@ -9,7 +9,7 @@ architecture:
     topology: mesh
     rows: 256
     cols: 256
-    routing: static
+    routing: xy
     congestion_model: destination_flow
     virtual_channels: 1
     input_buffer_depth: 16

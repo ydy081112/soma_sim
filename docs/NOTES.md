@@ -2,6 +2,10 @@
 
 ## [已完成]
 
+- 2026-09-06：`compiler/mlir-soma` 完成 `--snnop-core-mapping`：14 类 fused SNNOp 按 neuron capacity 分区并 first-fit greedy 放置到 `snn_arch.*_core`，用 Variadic partition-to-partition SSA 和 source metadata 保留 QK/QKV/residual/spike/tracer 依赖，跨 Core edge 插入 `noc.send_router/recv_router`，不使用 `partition_join`。真实 block_00 生成 128 个 Core partitions 并通过 round-trip verifier；CTest 17/17。详见 `compiler/docs/SNNOP_CORE_MAPPING.md`。
+
+- 2026-09-05：`compiler/mlir-soma` 新增 NoC/SNNArch core-level 方言和 hardware YAML 前端：module-level `noc.network`、`snn_arch.core_type` 支持 symbol、单位化 hop latency 和 XY mesh 配置。`arch/*.yaml` 与生成 MLIR 均通过验证，CTest 14/14。详见 `compiler/docs/NOC_SNNARCH_CORE_LEVEL.md`。
+
 - 2026-09-05：完成 split-residual-norm ViT NIR block00--05 的配置驱动端到端回放。新增 `configs/vit_loihi_like_blocks00_05.yaml` 和 `tools/run_vit_blocks.py`：自动生成每 block runtime/mapping/input，先逐元素验证 `residual_add2_IF→下一 block_input` 边界，再运行 SOMA 与全节点 reference comparator。六个 block 全部 `completed=true` 且全计算节点 zero mismatch，最终 block05 `residual_add2_IF` 亦 zero mismatch。累计串行工作量：138,977,886,226 ps、22,218,077,463.47 pJ、6,861,919 packets、31,919,624 hops、350,838,872 synaptic updates、300,220,416 attention updates，host 合计 31.238 s。block05 发现并修正负 shifter 的实际 NIR nearest-even destination accumulation 量化：新增通用 `post_accumulation_rounding`，默认 `none`。中文详报见 `docs/VIT_BLOCKS00_05_STATUS.md`。
 
 - 2026-09-04：完成 `compiler/mlir-soma` 的 SNNExec 首层 IR：新增 persistent state/voltage type、9 个 spike/state 执行 op 和 `--lower-snnop-to-snnexec`，覆盖全部现有 fused SNNOp。真实 split-residual-norm block_00 已完成 import → fusion → dead-neuron-output elimination → SNNExec lowering → parse/verify/print；数值 dtype 来自 NIR（本 block voltage/threshold i16、tracer i8），CTest 9/9 通过。详见 `compiler/docs/SNNEXEC.md`。
