@@ -34,7 +34,8 @@ public:
               std::int32_t tracer_max = 0, std::vector<float> initial_membrane = {});
 
     SomaNeuronResult process_neuron(std::uint64_t neuron, float synaptic_input,
-                                    bool has_pending_input, float bias);
+                                    bool has_pending_input, float bias,
+                                    float input_scale = 1.0F);
     const std::vector<float>& voltage() const { return voltage_; }
     const std::vector<std::uint32_t>& fire_count() const { return fire_count_; }
     const std::vector<std::int32_t>& tracer() const { return tracer_; }

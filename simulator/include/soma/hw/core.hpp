@@ -8,6 +8,7 @@
 #include "soma/hw/tile.hpp"
 #include "soma/runtime/weight_store.hpp"
 #include "soma/runtime/incremental_spike_matmul.hpp"
+#include "soma/runtime/timestep_spike_attention.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -41,8 +42,11 @@ struct CoreNeuronProcessResult {
     SimTime hw_soma_service_latency = 0;
     SimTime hw_resource_wait_latency = 0;
     std::uint64_t attention_updates = 0;
+    std::uint64_t kv_attention_updates = 0;
+    std::uint64_t q_attention_updates = 0;
     SimTime hw_attention_service_latency = 0;
     std::vector<CoreFiringResult> firings;
+    std::vector<float> local_state_values;
 };
 
 class Core {
@@ -59,8 +63,10 @@ public:
                               const std::string& operand = "",
                               const std::string& operand_layout = "flat_internal");
     CoreNeuronProcessResult process_timestep(std::uint32_t timestep, SimTime hw_arrival_time);
-    const std::vector<float>& output_scores() const { return soma_.voltage(); }
-    const std::vector<std::uint32_t>& output_fire_counts() const { return soma_.fire_count(); }
+    CoreReceiveResult receive_local_state(std::uint64_t source_neuron, float value,
+                                     const LayerWeights& connection_weights);
+    const std::vector<float>& output_scores() const;
+    const std::vector<std::uint32_t>& output_fire_counts() const;
     const PhysicalCoreAddress& address() const { return address_; }
     std::uint64_t physical_neuron_begin() const { return physical_neuron_begin_; }
     std::uint64_t physical_neuron_count() const { return physical_neuron_count_; }
@@ -73,15 +79,18 @@ private:
     std::uint64_t physical_neuron_begin_ = 0;
     std::uint64_t physical_neuron_count_ = 0;
     HardwareResource compute_pipeline_;
-    SomaState soma_;
+    // multi_valued_state 不需要 LIF/ST-BIF 的 persistent voltage/tracer/fire-count SoA。
+    std::unique_ptr<SomaState> soma_;
     std::vector<std::vector<float>> delayed_buffers_;
     std::vector<std::vector<std::uint8_t>> delayed_pending_;
     std::size_t next_buffer_ = 0;
     std::uint32_t processed_timestep_ = 0;
     std::vector<std::uint32_t> last_state_timestep_;
     std::unique_ptr<IncrementalSpikeMatmul> attention_;
+    std::unique_ptr<TimestepSpikeAttention> timestep_attention_;
     std::vector<std::unordered_map<std::size_t, std::int8_t>> attention_lhs_buffers_;
     std::vector<std::unordered_map<std::size_t, std::int8_t>> attention_rhs_buffers_;
+    std::vector<std::unordered_map<std::size_t, std::int8_t>> attention_third_buffers_;
     std::vector<std::uint8_t> attention_pending_buffers_;
     bool state_started_ = false;
 };

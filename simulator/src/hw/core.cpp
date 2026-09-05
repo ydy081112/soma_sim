@@ -32,25 +32,27 @@ Core::Core(const LayerMapping& mapping, const HardwareConfig& hardware, const La
     : mapping_(mapping), hardware_(hardware), weights_(weights), address_(address),
       physical_neuron_begin_(physical_neuron_begin),
       physical_neuron_count_(physical_neuron_count),
-      soma_(static_cast<std::size_t>(physical_neuron_count), mapping.threshold, mapping.leak,
+      delayed_buffers_(static_cast<std::size_t>(max_connection_delay) + 1,
+                       std::vector<float>(static_cast<std::size_t>(physical_neuron_count), 0.0F)),
+      delayed_pending_(static_cast<std::size_t>(max_connection_delay) + 1,
+                       std::vector<std::uint8_t>(static_cast<std::size_t>(physical_neuron_count), 0)) {
+    if (physical_neuron_count == 0 ||
+        physical_neuron_begin + physical_neuron_count > mapping.neurons ||
+        physical_neuron_count > hardware.core.max_neurons) {
+        throw std::runtime_error(mapping.id + ": physical Core neuron range 不合法");
+    }
+    if (mapping.neuron_model != "multi_valued_state") {
+        last_state_timestep_.assign(static_cast<std::size_t>(physical_neuron_count), 0);
+        soma_ = std::make_unique<SomaState>(
+            static_cast<std::size_t>(physical_neuron_count), mapping.threshold, mapping.leak,
             mapping.reset, mapping.readout, mapping.membrane_quantization_step,
-            mapping.threshold_comparison,
-            hardware.core.threshold_compare_mode,
+            mapping.threshold_comparison, hardware.core.threshold_compare_mode,
             local_values(weights.threshold, mapping, physical_neuron_begin, physical_neuron_count),
             hardware.core.membrane_min, hardware.core.membrane_max,
             hardware.core.fire_on_positive_saturation, mapping.neuron_model,
             mapping.tracer_min, mapping.tracer_max,
             local_values(weights.initial_membrane, mapping, physical_neuron_begin,
-                         physical_neuron_count)),
-      delayed_buffers_(static_cast<std::size_t>(max_connection_delay) + 1,
-                       std::vector<float>(static_cast<std::size_t>(physical_neuron_count), 0.0F)),
-      delayed_pending_(static_cast<std::size_t>(max_connection_delay) + 1,
-                       std::vector<std::uint8_t>(static_cast<std::size_t>(physical_neuron_count), 0)),
-      last_state_timestep_(static_cast<std::size_t>(physical_neuron_count), 0) {
-    if (physical_neuron_count == 0 ||
-        physical_neuron_begin + physical_neuron_count > mapping.neurons ||
-        physical_neuron_count > hardware.core.max_neurons) {
-        throw std::runtime_error(mapping.id + ": physical Core neuron range 不合法");
+                         physical_neuron_count));
     }
     if (mapping.operator_type == "incremental_spike_matmul") {
         const auto kind = mapping.attention_kind == "qk"
@@ -69,6 +71,15 @@ Core::Core(const LayerMapping& mapping, const HardwareConfig& hardware, const La
         attention_rhs_buffers_.resize(delayed_buffers_.size());
         static_cast<void>(lhs_size);
         static_cast<void>(rhs_size);
+        attention_pending_buffers_.assign(delayed_buffers_.size(), 0);
+    }
+    if (mapping.operator_type == "timestep_spike_attention") {
+        timestep_attention_ = std::make_unique<TimestepSpikeAttention>(
+            mapping.attention_heads, mapping.attention_rows, mapping.attention_reduction,
+            physical_neuron_begin, physical_neuron_count, mapping.attention_scale);
+        attention_lhs_buffers_.resize(delayed_buffers_.size());
+        attention_rhs_buffers_.resize(delayed_buffers_.size());
+        attention_third_buffers_.resize(delayed_buffers_.size());
         attention_pending_buffers_.assign(delayed_buffers_.size(), 0);
     }
 }
@@ -91,10 +102,14 @@ CoreReceiveResult Core::receive(std::uint64_t source_neuron, float value, std::u
     state_started_ = true;
 
     if (active_weights.connection_type == ConnectionType::AttentionOperand) {
-        if (!attention_ || (operand != "lhs" && operand != "rhs"))
+        const bool incremental = attention_ != nullptr && (operand == "lhs" || operand == "rhs");
+        const bool timestep_attention = timestep_attention_ != nullptr &&
+                                        (operand == "q" || operand == "k" || operand == "v");
+        if (!incremental && !timestep_attention)
             throw std::runtime_error(mapping_.id + ": attention operand 配置无效");
-        auto& target = operand == "lhs" ? attention_lhs_buffers_[buffer]
-                                         : attention_rhs_buffers_[buffer];
+        auto& target = operand == "lhs" || operand == "q" ? attention_lhs_buffers_[buffer]
+                     : operand == "rhs" || operand == "k" ? attention_rhs_buffers_[buffer]
+                                                               : attention_third_buffers_[buffer];
         std::size_t index = static_cast<std::size_t>(source_neuron);
         if (operand_layout == "row_head_reduction") {
             const auto per_row = static_cast<std::uint64_t>(mapping_.attention_heads) *
@@ -103,8 +118,8 @@ CoreReceiveResult Core::receive(std::uint64_t source_neuron, float value, std::u
             const auto within = source_neuron % per_row;
             const auto head = within / mapping_.attention_reduction;
             const auto reduction = within % mapping_.attention_reduction;
-            const auto major = operand == "lhs" ? mapping_.attention_rows
-                                                  : mapping_.attention_columns;
+            const auto major = (operand == "lhs" || operand == "q" || operand == "k" || operand == "v")
+                                 ? mapping_.attention_rows : mapping_.attention_columns;
             index = static_cast<std::size_t>((head * major + row) *
                                              mapping_.attention_reduction + reduction);
         } else if (operand_layout == "row_head_column") {
@@ -117,7 +132,8 @@ CoreReceiveResult Core::receive(std::uint64_t source_neuron, float value, std::u
             index = static_cast<std::size_t>((head * mapping_.attention_columns + column) *
                                              mapping_.attention_reduction + reduction);
         }
-        const auto expected_size = operand == "lhs"
+        const auto expected_size = timestep_attention ? static_cast<std::size_t>(mapping_.attention_heads) * mapping_.attention_rows * mapping_.attention_reduction
+            : operand == "lhs"
             ? static_cast<std::size_t>(mapping_.attention_heads) * mapping_.attention_rows *
                   mapping_.attention_reduction
             : static_cast<std::size_t>(mapping_.attention_heads) * mapping_.attention_columns *
@@ -203,6 +219,26 @@ CoreReceiveResult Core::receive(std::uint64_t source_neuron, float value, std::u
                              updates};
 }
 
+CoreReceiveResult Core::receive_local_state(std::uint64_t source_neuron, float value,
+                                       const LayerWeights& connection_weights) {
+    if (connection_weights.connection_type != ConnectionType::LocalStateBuffer)
+        throw std::logic_error(mapping_.id + ": receive_local_state 的 connection 类型错误");
+    if (source_neuron >= connection_weights.source_neurons)
+        throw std::runtime_error(mapping_.id + ": local state source neuron 越界");
+    const auto physical = mapping_.physical_neuron_index(source_neuron);
+    if (physical < physical_neuron_begin_ ||
+        physical >= physical_neuron_begin_ + physical_neuron_count_) return {};
+    const auto wi = connection_weights.identity_weight.size() == 1 ? 0 :
+                    connection_weights.identity_weight.size() == mapping_.neurons
+                        ? static_cast<std::size_t>(source_neuron)
+                        : static_cast<std::size_t>(source_neuron % mapping_.output_channels);
+    const auto local = static_cast<std::size_t>(physical - physical_neuron_begin_);
+    state_started_ = true;
+    delayed_buffers_[next_buffer_][local] += value * connection_weights.identity_weight.at(wi);
+    delayed_pending_[next_buffer_][local] = 1;
+    return {};
+}
+
 CoreNeuronProcessResult Core::process_timestep(std::uint32_t timestep,
                                                SimTime hw_arrival_time) {
     if (timestep != processed_timestep_ + 1) throw std::logic_error(mapping_.id + ": neuron timestep 不连续");
@@ -210,6 +246,33 @@ CoreNeuronProcessResult Core::process_timestep(std::uint32_t timestep,
     auto& timestep_pending = delayed_pending_[next_buffer_];
 
     CoreNeuronProcessResult result;
+    if (mapping_.neuron_model == "multi_valued_state") {
+        // Cx State 风格的多值 local state buffer 仅在本 logical timestep 存活；
+        // 它承担 residual 加法，不产生 spike，也不通过 NoC。
+        if (!state_started_) {
+            // 上游尚未产生第一个 logical frame 时，不得凭 Conv/BN bias 虚构 activation。
+            next_buffer_ = (next_buffer_ + 1) % delayed_buffers_.size();
+            processed_timestep_ = timestep;
+            result.hw_finish_time = hw_arrival_time;
+            return result;
+        }
+        result.local_state_values.resize(static_cast<std::size_t>(physical_neuron_count_));
+        for (std::uint64_t local = 0; local < physical_neuron_count_; ++local) {
+            const auto physical = physical_neuron_begin_ + local;
+            const auto logical = mapping_.logical_neuron_index(physical);
+            const auto bias = weights_.bias.empty() ? 0.0F :
+                weights_.bias.size() == mapping_.neurons ? weights_.bias[logical] :
+                weights_.bias[logical % mapping_.output_channels];
+            result.local_state_values[static_cast<std::size_t>(local)] =
+                timestep_buffer[static_cast<std::size_t>(local)] + bias;
+            timestep_buffer[static_cast<std::size_t>(local)] = 0.0F;
+            timestep_pending[static_cast<std::size_t>(local)] = 0;
+        }
+        next_buffer_ = (next_buffer_ + 1) % delayed_buffers_.size();
+        processed_timestep_ = timestep;
+        result.hw_finish_time = hw_arrival_time;
+        return result;
+    }
     if (attention_ && attention_pending_buffers_[next_buffer_] != 0) {
         std::vector<std::int8_t> lhs(
             static_cast<std::size_t>(mapping_.attention_heads) * mapping_.attention_rows *
@@ -236,6 +299,21 @@ CoreNeuronProcessResult Core::process_timestep(std::uint32_t timestep,
                                            std::max<SimTime>(latency, 1))
             throw std::runtime_error(mapping_.id + ": attention latency 溢出");
         result.hw_attention_service_latency = result.attention_updates * latency;
+    }
+    if (timestep_attention_ && attention_pending_buffers_[next_buffer_] != 0) {
+        const auto n=static_cast<std::size_t>(mapping_.attention_heads)*mapping_.attention_rows*mapping_.attention_reduction;
+        std::vector<std::int8_t> q(n),k(n),v(n);
+        for(const auto& [i,x]:attention_lhs_buffers_[next_buffer_])q[i]=x;
+        for(const auto& [i,x]:attention_rhs_buffers_[next_buffer_])k[i]=x;
+        for(const auto& [i,x]:attention_third_buffers_[next_buffer_])v[i]=x;
+        const auto a=timestep_attention_->update(q,k,v);
+        for(std::size_t i=0;i<a.output.size();++i){timestep_buffer[i]+=a.output[i];if(a.output[i]!=0)timestep_pending[i]=1;}
+        attention_lhs_buffers_[next_buffer_].clear();attention_rhs_buffers_[next_buffer_].clear();attention_third_buffers_[next_buffer_].clear();attention_pending_buffers_[next_buffer_]=0;
+        result.attention_updates=a.kv_updates+a.q_updates;
+        result.kv_attention_updates=a.kv_updates;
+        result.q_attention_updates=a.q_updates;
+        const auto latency=hardware_.core.qkv_attention_hw_latency;
+        result.hw_attention_service_latency=result.attention_updates*latency;
     }
     if (mapping_.post_accumulation_rounding == "nearest_even") {
         for (auto& value : timestep_buffer) value = std::nearbyint(value);
@@ -279,9 +357,9 @@ CoreNeuronProcessResult Core::process_timestep(std::uint32_t timestep,
         const auto elapsed = hardware_.core.neuron_update_mode == "event_activated_catch_up"
                                  ? timestep - last_state_timestep_[index]
                                  : 1U;
-        const auto neuron_result = soma_.process_neuron(
+        const auto neuron_result = soma_->process_neuron(
             local_neuron, timestep_buffer[index], pending,
-            configured_bias * static_cast<float>(elapsed));
+            configured_bias * static_cast<float>(elapsed), mapping_.input_scale);
         last_state_timestep_[index] = timestep;
         if (neuron_result.updated) {
             ++result.updated_neurons;
@@ -312,6 +390,16 @@ CoreNeuronProcessResult Core::process_timestep(std::uint32_t timestep,
                              address_.global_core, firing.local_neuron});
     }
     return result;
+}
+
+const std::vector<float>& Core::output_scores() const {
+    static const std::vector<float> empty;
+    return soma_ ? soma_->voltage() : empty;
+}
+
+const std::vector<std::uint32_t>& Core::output_fire_counts() const {
+    static const std::vector<std::uint32_t> empty;
+    return soma_ ? soma_->fire_count() : empty;
 }
 
 }  // namespace soma

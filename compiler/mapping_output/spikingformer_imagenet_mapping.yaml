@@ -1,0 +1,3709 @@
+mapping:
+  model: spikingformer_imagenet_official
+  flush_timesteps: 100
+  stream_input_records: true
+  layers:
+    - id: input
+      op: input
+      pe: 0
+      core: 0
+      router: 0
+      neurons: 4816896
+      output_h: 224
+      output_w: 224
+      output_channels: 96
+      virtual_input: true
+      direct_input: true
+    - id: pool1
+      op: conv2d
+      pe: 0
+      core: 0
+      router: 0
+      neurons: 1204224
+      source_neurons: 1204224
+      output_h: 112
+      output_w: 112
+      output_channels: 96
+      aggregate_core_count: 1176
+      weight_prefix: pool1
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: token_conv1
+      op: conv2d
+      pe: 294
+      core: 0
+      router: 294
+      neurons: 2408448
+      source_neurons: 2408448
+      output_h: 112
+      output_w: 112
+      output_channels: 192
+      aggregate_core_count: 2352
+      weight_prefix: token_conv1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: token_lif2
+      op: conv2d
+      pe: 882
+      core: 0
+      router: 882
+      neurons: 2408448
+      source_neurons: 2408448
+      output_h: 112
+      output_w: 112
+      output_channels: 192
+      aggregate_core_count: 2352
+      weight_prefix: token_lif2
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: pool2
+      op: conv2d
+      pe: 1470
+      core: 0
+      router: 1470
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 56
+      output_w: 56
+      output_channels: 192
+      aggregate_core_count: 588
+      weight_prefix: pool2
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: token_conv2
+      op: conv2d
+      pe: 1617
+      core: 0
+      router: 1617
+      neurons: 1204224
+      source_neurons: 1204224
+      output_h: 56
+      output_w: 56
+      output_channels: 384
+      aggregate_core_count: 1176
+      weight_prefix: token_conv2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: token_lif3
+      op: conv2d
+      pe: 1911
+      core: 0
+      router: 1911
+      neurons: 1204224
+      source_neurons: 1204224
+      output_h: 56
+      output_w: 56
+      output_channels: 384
+      aggregate_core_count: 1176
+      weight_prefix: token_lif3
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: pool3
+      op: conv2d
+      pe: 2205
+      core: 0
+      router: 2205
+      neurons: 301056
+      source_neurons: 301056
+      output_h: 28
+      output_w: 28
+      output_channels: 384
+      aggregate_core_count: 294
+      weight_prefix: pool3
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: token_conv3
+      op: conv2d
+      pe: 2278
+      core: 2
+      router: 2278
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 28
+      output_w: 28
+      output_channels: 768
+      aggregate_core_count: 588
+      weight_prefix: token_conv3
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: token_lif4
+      op: conv2d
+      pe: 2425
+      core: 2
+      router: 2425
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 28
+      output_w: 28
+      output_channels: 768
+      aggregate_core_count: 588
+      weight_prefix: token_lif4
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: pool4
+      op: conv2d
+      pe: 2572
+      core: 2
+      router: 2572
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: pool4
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: token_conv4
+      op: conv2d
+      pe: 2609
+      core: 1
+      router: 2609
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: token_conv4
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b0_proj_lif
+      op: conv2d
+      pe: 2646
+      core: 0
+      router: 2646
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b0_proj_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b0_q_pre
+      op: conv2d
+      pe: 2682
+      core: 3
+      router: 2682
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b0_q_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b0_q
+      op: conv2d
+      pe: 2719
+      core: 2
+      router: 2719
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b0_q
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b0_k_pre
+      op: conv2d
+      pe: 2756
+      core: 1
+      router: 2756
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b0_k_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b0_k
+      op: conv2d
+      pe: 2793
+      core: 0
+      router: 2793
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b0_k
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b0_v_pre
+      op: conv2d
+      pe: 2829
+      core: 3
+      router: 2829
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b0_v_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b0_v
+      op: conv2d
+      pe: 2866
+      core: 2
+      router: 2866
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b0_v
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b0_attn
+      op: conv2d
+      pe: 2903
+      core: 1
+      router: 2903
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b0_attn
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 0.5
+      reset: hard
+      operator_type: timestep_spike_attention
+      attention_heads: 8
+      attention_rows: 196
+      attention_reduction: 96
+      attention_output_layout: row_head_column
+      attention_scale: 0.125
+      attention_kind: qkv
+    - id: b0_attn_proj
+      op: conv2d
+      pe: 2940
+      core: 0
+      router: 2940
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b0_attn_proj
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b0_res1
+      op: conv2d
+      pe: 2976
+      core: 3
+      router: 2976
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b0_res1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b0_mlp1_lif
+      op: conv2d
+      pe: 3013
+      core: 2
+      router: 3013
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b0_mlp1_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b0_mlp1
+      op: conv2d
+      pe: 3050
+      core: 1
+      router: 3050
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 14
+      output_w: 14
+      output_channels: 3072
+      aggregate_core_count: 588
+      weight_prefix: b0_mlp1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b0_mlp2_lif
+      op: conv2d
+      pe: 3197
+      core: 1
+      router: 3197
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 14
+      output_w: 14
+      output_channels: 3072
+      aggregate_core_count: 588
+      weight_prefix: b0_mlp2_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b0_mlp2
+      op: conv2d
+      pe: 3344
+      core: 1
+      router: 3344
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b0_mlp2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b0_res2
+      op: conv2d
+      pe: 3381
+      core: 0
+      router: 3381
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b0_res2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b1_proj_lif
+      op: conv2d
+      pe: 3417
+      core: 3
+      router: 3417
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b1_proj_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b1_q_pre
+      op: conv2d
+      pe: 3454
+      core: 2
+      router: 3454
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b1_q_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b1_q
+      op: conv2d
+      pe: 3491
+      core: 1
+      router: 3491
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b1_q
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b1_k_pre
+      op: conv2d
+      pe: 3528
+      core: 0
+      router: 3528
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b1_k_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b1_k
+      op: conv2d
+      pe: 3564
+      core: 3
+      router: 3564
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b1_k
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b1_v_pre
+      op: conv2d
+      pe: 3601
+      core: 2
+      router: 3601
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b1_v_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b1_v
+      op: conv2d
+      pe: 3638
+      core: 1
+      router: 3638
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b1_v
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b1_attn
+      op: conv2d
+      pe: 3675
+      core: 0
+      router: 3675
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b1_attn
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 0.5
+      reset: hard
+      operator_type: timestep_spike_attention
+      attention_heads: 8
+      attention_rows: 196
+      attention_reduction: 96
+      attention_output_layout: row_head_column
+      attention_scale: 0.125
+      attention_kind: qkv
+    - id: b1_attn_proj
+      op: conv2d
+      pe: 3711
+      core: 3
+      router: 3711
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b1_attn_proj
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b1_res1
+      op: conv2d
+      pe: 3748
+      core: 2
+      router: 3748
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b1_res1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b1_mlp1_lif
+      op: conv2d
+      pe: 3785
+      core: 1
+      router: 3785
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b1_mlp1_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b1_mlp1
+      op: conv2d
+      pe: 3822
+      core: 0
+      router: 3822
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 14
+      output_w: 14
+      output_channels: 3072
+      aggregate_core_count: 588
+      weight_prefix: b1_mlp1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b1_mlp2_lif
+      op: conv2d
+      pe: 3969
+      core: 0
+      router: 3969
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 14
+      output_w: 14
+      output_channels: 3072
+      aggregate_core_count: 588
+      weight_prefix: b1_mlp2_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b1_mlp2
+      op: conv2d
+      pe: 4116
+      core: 0
+      router: 4116
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b1_mlp2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b1_res2
+      op: conv2d
+      pe: 4152
+      core: 3
+      router: 4152
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b1_res2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b2_proj_lif
+      op: conv2d
+      pe: 4189
+      core: 2
+      router: 4189
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b2_proj_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b2_q_pre
+      op: conv2d
+      pe: 4226
+      core: 1
+      router: 4226
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b2_q_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b2_q
+      op: conv2d
+      pe: 4263
+      core: 0
+      router: 4263
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b2_q
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b2_k_pre
+      op: conv2d
+      pe: 4299
+      core: 3
+      router: 4299
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b2_k_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b2_k
+      op: conv2d
+      pe: 4336
+      core: 2
+      router: 4336
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b2_k
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b2_v_pre
+      op: conv2d
+      pe: 4373
+      core: 1
+      router: 4373
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b2_v_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b2_v
+      op: conv2d
+      pe: 4410
+      core: 0
+      router: 4410
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b2_v
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b2_attn
+      op: conv2d
+      pe: 4446
+      core: 3
+      router: 4446
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b2_attn
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 0.5
+      reset: hard
+      operator_type: timestep_spike_attention
+      attention_heads: 8
+      attention_rows: 196
+      attention_reduction: 96
+      attention_output_layout: row_head_column
+      attention_scale: 0.125
+      attention_kind: qkv
+    - id: b2_attn_proj
+      op: conv2d
+      pe: 4483
+      core: 2
+      router: 4483
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b2_attn_proj
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b2_res1
+      op: conv2d
+      pe: 4520
+      core: 1
+      router: 4520
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b2_res1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b2_mlp1_lif
+      op: conv2d
+      pe: 4557
+      core: 0
+      router: 4557
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b2_mlp1_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b2_mlp1
+      op: conv2d
+      pe: 4593
+      core: 3
+      router: 4593
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 14
+      output_w: 14
+      output_channels: 3072
+      aggregate_core_count: 588
+      weight_prefix: b2_mlp1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b2_mlp2_lif
+      op: conv2d
+      pe: 4740
+      core: 3
+      router: 4740
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 14
+      output_w: 14
+      output_channels: 3072
+      aggregate_core_count: 588
+      weight_prefix: b2_mlp2_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b2_mlp2
+      op: conv2d
+      pe: 4887
+      core: 3
+      router: 4887
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b2_mlp2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b2_res2
+      op: conv2d
+      pe: 4924
+      core: 2
+      router: 4924
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b2_res2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b3_proj_lif
+      op: conv2d
+      pe: 4961
+      core: 1
+      router: 4961
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b3_proj_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b3_q_pre
+      op: conv2d
+      pe: 4998
+      core: 0
+      router: 4998
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b3_q_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b3_q
+      op: conv2d
+      pe: 5034
+      core: 3
+      router: 5034
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b3_q
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b3_k_pre
+      op: conv2d
+      pe: 5071
+      core: 2
+      router: 5071
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b3_k_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b3_k
+      op: conv2d
+      pe: 5108
+      core: 1
+      router: 5108
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b3_k
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b3_v_pre
+      op: conv2d
+      pe: 5145
+      core: 0
+      router: 5145
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b3_v_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b3_v
+      op: conv2d
+      pe: 5181
+      core: 3
+      router: 5181
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b3_v
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b3_attn
+      op: conv2d
+      pe: 5218
+      core: 2
+      router: 5218
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b3_attn
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 0.5
+      reset: hard
+      operator_type: timestep_spike_attention
+      attention_heads: 8
+      attention_rows: 196
+      attention_reduction: 96
+      attention_output_layout: row_head_column
+      attention_scale: 0.125
+      attention_kind: qkv
+    - id: b3_attn_proj
+      op: conv2d
+      pe: 5255
+      core: 1
+      router: 5255
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b3_attn_proj
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b3_res1
+      op: conv2d
+      pe: 5292
+      core: 0
+      router: 5292
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b3_res1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b3_mlp1_lif
+      op: conv2d
+      pe: 5328
+      core: 3
+      router: 5328
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b3_mlp1_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b3_mlp1
+      op: conv2d
+      pe: 5365
+      core: 2
+      router: 5365
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 14
+      output_w: 14
+      output_channels: 3072
+      aggregate_core_count: 588
+      weight_prefix: b3_mlp1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b3_mlp2_lif
+      op: conv2d
+      pe: 5512
+      core: 2
+      router: 5512
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 14
+      output_w: 14
+      output_channels: 3072
+      aggregate_core_count: 588
+      weight_prefix: b3_mlp2_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b3_mlp2
+      op: conv2d
+      pe: 5659
+      core: 2
+      router: 5659
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b3_mlp2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b3_res2
+      op: conv2d
+      pe: 5696
+      core: 1
+      router: 5696
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b3_res2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b4_proj_lif
+      op: conv2d
+      pe: 5733
+      core: 0
+      router: 5733
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b4_proj_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b4_q_pre
+      op: conv2d
+      pe: 5769
+      core: 3
+      router: 5769
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b4_q_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b4_q
+      op: conv2d
+      pe: 5806
+      core: 2
+      router: 5806
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b4_q
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b4_k_pre
+      op: conv2d
+      pe: 5843
+      core: 1
+      router: 5843
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b4_k_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b4_k
+      op: conv2d
+      pe: 5880
+      core: 0
+      router: 5880
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b4_k
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b4_v_pre
+      op: conv2d
+      pe: 5916
+      core: 3
+      router: 5916
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b4_v_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b4_v
+      op: conv2d
+      pe: 5953
+      core: 2
+      router: 5953
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b4_v
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b4_attn
+      op: conv2d
+      pe: 5990
+      core: 1
+      router: 5990
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b4_attn
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 0.5
+      reset: hard
+      operator_type: timestep_spike_attention
+      attention_heads: 8
+      attention_rows: 196
+      attention_reduction: 96
+      attention_output_layout: row_head_column
+      attention_scale: 0.125
+      attention_kind: qkv
+    - id: b4_attn_proj
+      op: conv2d
+      pe: 6027
+      core: 0
+      router: 6027
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b4_attn_proj
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b4_res1
+      op: conv2d
+      pe: 6063
+      core: 3
+      router: 6063
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b4_res1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b4_mlp1_lif
+      op: conv2d
+      pe: 6100
+      core: 2
+      router: 6100
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b4_mlp1_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b4_mlp1
+      op: conv2d
+      pe: 6137
+      core: 1
+      router: 6137
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 14
+      output_w: 14
+      output_channels: 3072
+      aggregate_core_count: 588
+      weight_prefix: b4_mlp1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b4_mlp2_lif
+      op: conv2d
+      pe: 6284
+      core: 1
+      router: 6284
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 14
+      output_w: 14
+      output_channels: 3072
+      aggregate_core_count: 588
+      weight_prefix: b4_mlp2_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b4_mlp2
+      op: conv2d
+      pe: 6431
+      core: 1
+      router: 6431
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b4_mlp2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b4_res2
+      op: conv2d
+      pe: 6468
+      core: 0
+      router: 6468
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b4_res2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b5_proj_lif
+      op: conv2d
+      pe: 6504
+      core: 3
+      router: 6504
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b5_proj_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b5_q_pre
+      op: conv2d
+      pe: 6541
+      core: 2
+      router: 6541
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b5_q_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b5_q
+      op: conv2d
+      pe: 6578
+      core: 1
+      router: 6578
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b5_q
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b5_k_pre
+      op: conv2d
+      pe: 6615
+      core: 0
+      router: 6615
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b5_k_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b5_k
+      op: conv2d
+      pe: 6651
+      core: 3
+      router: 6651
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b5_k
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b5_v_pre
+      op: conv2d
+      pe: 6688
+      core: 2
+      router: 6688
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b5_v_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b5_v
+      op: conv2d
+      pe: 6725
+      core: 1
+      router: 6725
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b5_v
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b5_attn
+      op: conv2d
+      pe: 6762
+      core: 0
+      router: 6762
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b5_attn
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 0.5
+      reset: hard
+      operator_type: timestep_spike_attention
+      attention_heads: 8
+      attention_rows: 196
+      attention_reduction: 96
+      attention_output_layout: row_head_column
+      attention_scale: 0.125
+      attention_kind: qkv
+    - id: b5_attn_proj
+      op: conv2d
+      pe: 6798
+      core: 3
+      router: 6798
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b5_attn_proj
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b5_res1
+      op: conv2d
+      pe: 6835
+      core: 2
+      router: 6835
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b5_res1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b5_mlp1_lif
+      op: conv2d
+      pe: 6872
+      core: 1
+      router: 6872
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b5_mlp1_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b5_mlp1
+      op: conv2d
+      pe: 6909
+      core: 0
+      router: 6909
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 14
+      output_w: 14
+      output_channels: 3072
+      aggregate_core_count: 588
+      weight_prefix: b5_mlp1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b5_mlp2_lif
+      op: conv2d
+      pe: 7056
+      core: 0
+      router: 7056
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 14
+      output_w: 14
+      output_channels: 3072
+      aggregate_core_count: 588
+      weight_prefix: b5_mlp2_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b5_mlp2
+      op: conv2d
+      pe: 7203
+      core: 0
+      router: 7203
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b5_mlp2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b5_res2
+      op: conv2d
+      pe: 7239
+      core: 3
+      router: 7239
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b5_res2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b6_proj_lif
+      op: conv2d
+      pe: 7276
+      core: 2
+      router: 7276
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b6_proj_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b6_q_pre
+      op: conv2d
+      pe: 7313
+      core: 1
+      router: 7313
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b6_q_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b6_q
+      op: conv2d
+      pe: 7350
+      core: 0
+      router: 7350
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b6_q
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b6_k_pre
+      op: conv2d
+      pe: 7386
+      core: 3
+      router: 7386
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b6_k_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b6_k
+      op: conv2d
+      pe: 7423
+      core: 2
+      router: 7423
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b6_k
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b6_v_pre
+      op: conv2d
+      pe: 7460
+      core: 1
+      router: 7460
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b6_v_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b6_v
+      op: conv2d
+      pe: 7497
+      core: 0
+      router: 7497
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b6_v
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b6_attn
+      op: conv2d
+      pe: 7533
+      core: 3
+      router: 7533
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b6_attn
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 0.5
+      reset: hard
+      operator_type: timestep_spike_attention
+      attention_heads: 8
+      attention_rows: 196
+      attention_reduction: 96
+      attention_output_layout: row_head_column
+      attention_scale: 0.125
+      attention_kind: qkv
+    - id: b6_attn_proj
+      op: conv2d
+      pe: 7570
+      core: 2
+      router: 7570
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b6_attn_proj
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b6_res1
+      op: conv2d
+      pe: 7607
+      core: 1
+      router: 7607
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b6_res1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b6_mlp1_lif
+      op: conv2d
+      pe: 7644
+      core: 0
+      router: 7644
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b6_mlp1_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b6_mlp1
+      op: conv2d
+      pe: 7680
+      core: 3
+      router: 7680
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 14
+      output_w: 14
+      output_channels: 3072
+      aggregate_core_count: 588
+      weight_prefix: b6_mlp1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b6_mlp2_lif
+      op: conv2d
+      pe: 7827
+      core: 3
+      router: 7827
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 14
+      output_w: 14
+      output_channels: 3072
+      aggregate_core_count: 588
+      weight_prefix: b6_mlp2_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b6_mlp2
+      op: conv2d
+      pe: 7974
+      core: 3
+      router: 7974
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b6_mlp2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b6_res2
+      op: conv2d
+      pe: 8011
+      core: 2
+      router: 8011
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b6_res2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b7_proj_lif
+      op: conv2d
+      pe: 8048
+      core: 1
+      router: 8048
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b7_proj_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b7_q_pre
+      op: conv2d
+      pe: 8085
+      core: 0
+      router: 8085
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b7_q_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b7_q
+      op: conv2d
+      pe: 8121
+      core: 3
+      router: 8121
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b7_q
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b7_k_pre
+      op: conv2d
+      pe: 8158
+      core: 2
+      router: 8158
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b7_k_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b7_k
+      op: conv2d
+      pe: 8195
+      core: 1
+      router: 8195
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b7_k
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b7_v_pre
+      op: conv2d
+      pe: 8232
+      core: 0
+      router: 8232
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b7_v_pre
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b7_v
+      op: conv2d
+      pe: 8268
+      core: 3
+      router: 8268
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b7_v
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b7_attn
+      op: conv2d
+      pe: 8305
+      core: 2
+      router: 8305
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b7_attn
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 0.5
+      reset: hard
+      operator_type: timestep_spike_attention
+      attention_heads: 8
+      attention_rows: 196
+      attention_reduction: 96
+      attention_output_layout: row_head_column
+      attention_scale: 0.125
+      attention_kind: qkv
+    - id: b7_attn_proj
+      op: conv2d
+      pe: 8342
+      core: 1
+      router: 8342
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b7_attn_proj
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b7_res1
+      op: conv2d
+      pe: 8379
+      core: 0
+      router: 8379
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b7_res1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b7_mlp1_lif
+      op: conv2d
+      pe: 8415
+      core: 3
+      router: 8415
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b7_mlp1_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b7_mlp1
+      op: conv2d
+      pe: 8452
+      core: 2
+      router: 8452
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 14
+      output_w: 14
+      output_channels: 3072
+      aggregate_core_count: 588
+      weight_prefix: b7_mlp1
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b7_mlp2_lif
+      op: conv2d
+      pe: 8599
+      core: 2
+      router: 8599
+      neurons: 602112
+      source_neurons: 602112
+      output_h: 14
+      output_w: 14
+      output_channels: 3072
+      aggregate_core_count: 588
+      weight_prefix: b7_mlp2_lif
+      neuron_model: lif
+      leak: 0.5
+      input_scale: 0.5
+      threshold: 1.0
+      reset: hard
+    - id: b7_mlp2
+      op: conv2d
+      pe: 8746
+      core: 2
+      router: 8746
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b7_mlp2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+    - id: b7_res2
+      op: conv2d
+      pe: 8783
+      core: 1
+      router: 8783
+      neurons: 150528
+      source_neurons: 150528
+      output_h: 14
+      output_w: 14
+      output_channels: 768
+      aggregate_core_count: 147
+      weight_prefix: b7_res2
+      neuron_model: multi_valued_state
+      leak: 1
+      input_scale: 1
+      threshold: 1.0
+      reset: hard
+  connections:
+    - from: input
+      to: pool1
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: pool1__spatial
+      channelwise: true
+    - from: pool1
+      to: token_conv1
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: token_conv1__spatial
+      channelwise: false
+    - from: token_conv1
+      to: token_lif2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: token_lif2__token_conv1
+    - from: token_lif2
+      to: pool2
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: pool2__spatial
+      channelwise: true
+    - from: pool2
+      to: token_conv2
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: token_conv2__spatial
+      channelwise: false
+    - from: token_conv2
+      to: token_lif3
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: token_lif3__token_conv2
+    - from: token_lif3
+      to: pool3
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: pool3__spatial
+      channelwise: true
+    - from: pool3
+      to: token_conv3
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: token_conv3__spatial
+      channelwise: false
+    - from: token_conv3
+      to: token_lif4
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: token_lif4__token_conv3
+    - from: token_lif4
+      to: pool4
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: pool4__spatial
+      channelwise: true
+    - from: pool4
+      to: token_conv4
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: token_conv4__spatial
+      channelwise: false
+    - from: token_conv4
+      to: b0_proj_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b0_proj_lif__token_conv4
+    - from: b0_proj_lif
+      to: b0_q_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b0_q_pre__spatial
+      channelwise: false
+    - from: b0_q_pre
+      to: b0_q
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b0_q__b0_q_pre
+    - from: b0_proj_lif
+      to: b0_k_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b0_k_pre__spatial
+      channelwise: false
+    - from: b0_k_pre
+      to: b0_k
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b0_k__b0_k_pre
+    - from: b0_proj_lif
+      to: b0_v_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b0_v_pre__spatial
+      channelwise: false
+    - from: b0_v_pre
+      to: b0_v
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b0_v__b0_v_pre
+    - from: b0_q
+      to: b0_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b0_attn
+      operand: q
+      operand_layout: row_head_reduction
+    - from: b0_k
+      to: b0_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b0_attn
+      operand: k
+      operand_layout: row_head_reduction
+    - from: b0_v
+      to: b0_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b0_attn
+      operand: v
+      operand_layout: row_head_reduction
+    - from: b0_attn
+      to: b0_attn_proj
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b0_attn_proj__spatial
+      channelwise: false
+    - from: token_conv4
+      to: b0_res1
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b0_res1__token_conv4
+    - from: b0_attn_proj
+      to: b0_res1
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b0_res1__b0_attn_proj
+    - from: b0_res1
+      to: b0_mlp1_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b0_mlp1_lif__b0_res1
+    - from: b0_mlp1_lif
+      to: b0_mlp1
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b0_mlp1__spatial
+      channelwise: false
+    - from: b0_mlp1
+      to: b0_mlp2_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b0_mlp2_lif__b0_mlp1
+    - from: b0_mlp2_lif
+      to: b0_mlp2
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b0_mlp2__spatial
+      channelwise: false
+    - from: b0_res1
+      to: b0_res2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b0_res2__b0_res1
+    - from: b0_mlp2
+      to: b0_res2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b0_res2__b0_mlp2
+    - from: b0_res2
+      to: b1_proj_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b1_proj_lif__b0_res2
+    - from: b1_proj_lif
+      to: b1_q_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b1_q_pre__spatial
+      channelwise: false
+    - from: b1_q_pre
+      to: b1_q
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b1_q__b1_q_pre
+    - from: b1_proj_lif
+      to: b1_k_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b1_k_pre__spatial
+      channelwise: false
+    - from: b1_k_pre
+      to: b1_k
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b1_k__b1_k_pre
+    - from: b1_proj_lif
+      to: b1_v_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b1_v_pre__spatial
+      channelwise: false
+    - from: b1_v_pre
+      to: b1_v
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b1_v__b1_v_pre
+    - from: b1_q
+      to: b1_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b1_attn
+      operand: q
+      operand_layout: row_head_reduction
+    - from: b1_k
+      to: b1_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b1_attn
+      operand: k
+      operand_layout: row_head_reduction
+    - from: b1_v
+      to: b1_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b1_attn
+      operand: v
+      operand_layout: row_head_reduction
+    - from: b1_attn
+      to: b1_attn_proj
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b1_attn_proj__spatial
+      channelwise: false
+    - from: b0_res2
+      to: b1_res1
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b1_res1__b0_res2
+    - from: b1_attn_proj
+      to: b1_res1
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b1_res1__b1_attn_proj
+    - from: b1_res1
+      to: b1_mlp1_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b1_mlp1_lif__b1_res1
+    - from: b1_mlp1_lif
+      to: b1_mlp1
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b1_mlp1__spatial
+      channelwise: false
+    - from: b1_mlp1
+      to: b1_mlp2_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b1_mlp2_lif__b1_mlp1
+    - from: b1_mlp2_lif
+      to: b1_mlp2
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b1_mlp2__spatial
+      channelwise: false
+    - from: b1_res1
+      to: b1_res2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b1_res2__b1_res1
+    - from: b1_mlp2
+      to: b1_res2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b1_res2__b1_mlp2
+    - from: b1_res2
+      to: b2_proj_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b2_proj_lif__b1_res2
+    - from: b2_proj_lif
+      to: b2_q_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b2_q_pre__spatial
+      channelwise: false
+    - from: b2_q_pre
+      to: b2_q
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b2_q__b2_q_pre
+    - from: b2_proj_lif
+      to: b2_k_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b2_k_pre__spatial
+      channelwise: false
+    - from: b2_k_pre
+      to: b2_k
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b2_k__b2_k_pre
+    - from: b2_proj_lif
+      to: b2_v_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b2_v_pre__spatial
+      channelwise: false
+    - from: b2_v_pre
+      to: b2_v
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b2_v__b2_v_pre
+    - from: b2_q
+      to: b2_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b2_attn
+      operand: q
+      operand_layout: row_head_reduction
+    - from: b2_k
+      to: b2_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b2_attn
+      operand: k
+      operand_layout: row_head_reduction
+    - from: b2_v
+      to: b2_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b2_attn
+      operand: v
+      operand_layout: row_head_reduction
+    - from: b2_attn
+      to: b2_attn_proj
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b2_attn_proj__spatial
+      channelwise: false
+    - from: b1_res2
+      to: b2_res1
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b2_res1__b1_res2
+    - from: b2_attn_proj
+      to: b2_res1
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b2_res1__b2_attn_proj
+    - from: b2_res1
+      to: b2_mlp1_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b2_mlp1_lif__b2_res1
+    - from: b2_mlp1_lif
+      to: b2_mlp1
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b2_mlp1__spatial
+      channelwise: false
+    - from: b2_mlp1
+      to: b2_mlp2_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b2_mlp2_lif__b2_mlp1
+    - from: b2_mlp2_lif
+      to: b2_mlp2
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b2_mlp2__spatial
+      channelwise: false
+    - from: b2_res1
+      to: b2_res2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b2_res2__b2_res1
+    - from: b2_mlp2
+      to: b2_res2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b2_res2__b2_mlp2
+    - from: b2_res2
+      to: b3_proj_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b3_proj_lif__b2_res2
+    - from: b3_proj_lif
+      to: b3_q_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b3_q_pre__spatial
+      channelwise: false
+    - from: b3_q_pre
+      to: b3_q
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b3_q__b3_q_pre
+    - from: b3_proj_lif
+      to: b3_k_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b3_k_pre__spatial
+      channelwise: false
+    - from: b3_k_pre
+      to: b3_k
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b3_k__b3_k_pre
+    - from: b3_proj_lif
+      to: b3_v_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b3_v_pre__spatial
+      channelwise: false
+    - from: b3_v_pre
+      to: b3_v
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b3_v__b3_v_pre
+    - from: b3_q
+      to: b3_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b3_attn
+      operand: q
+      operand_layout: row_head_reduction
+    - from: b3_k
+      to: b3_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b3_attn
+      operand: k
+      operand_layout: row_head_reduction
+    - from: b3_v
+      to: b3_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b3_attn
+      operand: v
+      operand_layout: row_head_reduction
+    - from: b3_attn
+      to: b3_attn_proj
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b3_attn_proj__spatial
+      channelwise: false
+    - from: b2_res2
+      to: b3_res1
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b3_res1__b2_res2
+    - from: b3_attn_proj
+      to: b3_res1
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b3_res1__b3_attn_proj
+    - from: b3_res1
+      to: b3_mlp1_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b3_mlp1_lif__b3_res1
+    - from: b3_mlp1_lif
+      to: b3_mlp1
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b3_mlp1__spatial
+      channelwise: false
+    - from: b3_mlp1
+      to: b3_mlp2_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b3_mlp2_lif__b3_mlp1
+    - from: b3_mlp2_lif
+      to: b3_mlp2
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b3_mlp2__spatial
+      channelwise: false
+    - from: b3_res1
+      to: b3_res2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b3_res2__b3_res1
+    - from: b3_mlp2
+      to: b3_res2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b3_res2__b3_mlp2
+    - from: b3_res2
+      to: b4_proj_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b4_proj_lif__b3_res2
+    - from: b4_proj_lif
+      to: b4_q_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b4_q_pre__spatial
+      channelwise: false
+    - from: b4_q_pre
+      to: b4_q
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b4_q__b4_q_pre
+    - from: b4_proj_lif
+      to: b4_k_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b4_k_pre__spatial
+      channelwise: false
+    - from: b4_k_pre
+      to: b4_k
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b4_k__b4_k_pre
+    - from: b4_proj_lif
+      to: b4_v_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b4_v_pre__spatial
+      channelwise: false
+    - from: b4_v_pre
+      to: b4_v
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b4_v__b4_v_pre
+    - from: b4_q
+      to: b4_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b4_attn
+      operand: q
+      operand_layout: row_head_reduction
+    - from: b4_k
+      to: b4_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b4_attn
+      operand: k
+      operand_layout: row_head_reduction
+    - from: b4_v
+      to: b4_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b4_attn
+      operand: v
+      operand_layout: row_head_reduction
+    - from: b4_attn
+      to: b4_attn_proj
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b4_attn_proj__spatial
+      channelwise: false
+    - from: b3_res2
+      to: b4_res1
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b4_res1__b3_res2
+    - from: b4_attn_proj
+      to: b4_res1
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b4_res1__b4_attn_proj
+    - from: b4_res1
+      to: b4_mlp1_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b4_mlp1_lif__b4_res1
+    - from: b4_mlp1_lif
+      to: b4_mlp1
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b4_mlp1__spatial
+      channelwise: false
+    - from: b4_mlp1
+      to: b4_mlp2_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b4_mlp2_lif__b4_mlp1
+    - from: b4_mlp2_lif
+      to: b4_mlp2
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b4_mlp2__spatial
+      channelwise: false
+    - from: b4_res1
+      to: b4_res2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b4_res2__b4_res1
+    - from: b4_mlp2
+      to: b4_res2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b4_res2__b4_mlp2
+    - from: b4_res2
+      to: b5_proj_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b5_proj_lif__b4_res2
+    - from: b5_proj_lif
+      to: b5_q_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b5_q_pre__spatial
+      channelwise: false
+    - from: b5_q_pre
+      to: b5_q
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b5_q__b5_q_pre
+    - from: b5_proj_lif
+      to: b5_k_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b5_k_pre__spatial
+      channelwise: false
+    - from: b5_k_pre
+      to: b5_k
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b5_k__b5_k_pre
+    - from: b5_proj_lif
+      to: b5_v_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b5_v_pre__spatial
+      channelwise: false
+    - from: b5_v_pre
+      to: b5_v
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b5_v__b5_v_pre
+    - from: b5_q
+      to: b5_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b5_attn
+      operand: q
+      operand_layout: row_head_reduction
+    - from: b5_k
+      to: b5_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b5_attn
+      operand: k
+      operand_layout: row_head_reduction
+    - from: b5_v
+      to: b5_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b5_attn
+      operand: v
+      operand_layout: row_head_reduction
+    - from: b5_attn
+      to: b5_attn_proj
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b5_attn_proj__spatial
+      channelwise: false
+    - from: b4_res2
+      to: b5_res1
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b5_res1__b4_res2
+    - from: b5_attn_proj
+      to: b5_res1
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b5_res1__b5_attn_proj
+    - from: b5_res1
+      to: b5_mlp1_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b5_mlp1_lif__b5_res1
+    - from: b5_mlp1_lif
+      to: b5_mlp1
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b5_mlp1__spatial
+      channelwise: false
+    - from: b5_mlp1
+      to: b5_mlp2_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b5_mlp2_lif__b5_mlp1
+    - from: b5_mlp2_lif
+      to: b5_mlp2
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b5_mlp2__spatial
+      channelwise: false
+    - from: b5_res1
+      to: b5_res2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b5_res2__b5_res1
+    - from: b5_mlp2
+      to: b5_res2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b5_res2__b5_mlp2
+    - from: b5_res2
+      to: b6_proj_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b6_proj_lif__b5_res2
+    - from: b6_proj_lif
+      to: b6_q_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b6_q_pre__spatial
+      channelwise: false
+    - from: b6_q_pre
+      to: b6_q
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b6_q__b6_q_pre
+    - from: b6_proj_lif
+      to: b6_k_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b6_k_pre__spatial
+      channelwise: false
+    - from: b6_k_pre
+      to: b6_k
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b6_k__b6_k_pre
+    - from: b6_proj_lif
+      to: b6_v_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b6_v_pre__spatial
+      channelwise: false
+    - from: b6_v_pre
+      to: b6_v
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b6_v__b6_v_pre
+    - from: b6_q
+      to: b6_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b6_attn
+      operand: q
+      operand_layout: row_head_reduction
+    - from: b6_k
+      to: b6_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b6_attn
+      operand: k
+      operand_layout: row_head_reduction
+    - from: b6_v
+      to: b6_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b6_attn
+      operand: v
+      operand_layout: row_head_reduction
+    - from: b6_attn
+      to: b6_attn_proj
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b6_attn_proj__spatial
+      channelwise: false
+    - from: b5_res2
+      to: b6_res1
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b6_res1__b5_res2
+    - from: b6_attn_proj
+      to: b6_res1
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b6_res1__b6_attn_proj
+    - from: b6_res1
+      to: b6_mlp1_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b6_mlp1_lif__b6_res1
+    - from: b6_mlp1_lif
+      to: b6_mlp1
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b6_mlp1__spatial
+      channelwise: false
+    - from: b6_mlp1
+      to: b6_mlp2_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b6_mlp2_lif__b6_mlp1
+    - from: b6_mlp2_lif
+      to: b6_mlp2
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b6_mlp2__spatial
+      channelwise: false
+    - from: b6_res1
+      to: b6_res2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b6_res2__b6_res1
+    - from: b6_mlp2
+      to: b6_res2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b6_res2__b6_mlp2
+    - from: b6_res2
+      to: b7_proj_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b7_proj_lif__b6_res2
+    - from: b7_proj_lif
+      to: b7_q_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b7_q_pre__spatial
+      channelwise: false
+    - from: b7_q_pre
+      to: b7_q
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b7_q__b7_q_pre
+    - from: b7_proj_lif
+      to: b7_k_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b7_k_pre__spatial
+      channelwise: false
+    - from: b7_k_pre
+      to: b7_k
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b7_k__b7_k_pre
+    - from: b7_proj_lif
+      to: b7_v_pre
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b7_v_pre__spatial
+      channelwise: false
+    - from: b7_v_pre
+      to: b7_v
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b7_v__b7_v_pre
+    - from: b7_q
+      to: b7_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b7_attn
+      operand: q
+      operand_layout: row_head_reduction
+    - from: b7_k
+      to: b7_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b7_attn
+      operand: k
+      operand_layout: row_head_reduction
+    - from: b7_v
+      to: b7_attn
+      type: attention_operand
+      hardware_type: dense
+      weight_prefix: b7_attn
+      operand: v
+      operand_layout: row_head_reduction
+    - from: b7_attn
+      to: b7_attn_proj
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b7_attn_proj__spatial
+      channelwise: false
+    - from: b6_res2
+      to: b7_res1
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b7_res1__b6_res2
+    - from: b7_attn_proj
+      to: b7_res1
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b7_res1__b7_attn_proj
+    - from: b7_res1
+      to: b7_mlp1_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b7_mlp1_lif__b7_res1
+    - from: b7_mlp1_lif
+      to: b7_mlp1
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b7_mlp1__spatial
+      channelwise: false
+    - from: b7_mlp1
+      to: b7_mlp2_lif
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b7_mlp2_lif__b7_mlp1
+    - from: b7_mlp2_lif
+      to: b7_mlp2
+      type: spatial
+      hardware_type: spatial
+      weight_prefix: b7_mlp2__spatial
+      channelwise: false
+    - from: b7_res1
+      to: b7_res2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b7_res2__b7_res1
+    - from: b7_mlp2
+      to: b7_res2
+      type: local_state_buffer
+      hardware_type: identity
+      weight_prefix: b7_res2__b7_mlp2
+  routes:
+    - from: input
+      to: pool1
+      routers: [0, 0]
+    - from: pool1
+      to: token_conv1
+      routers: [0, 294]
+    - from: token_conv1
+      to: token_lif2
+      routers: [294, 882]
+    - from: token_lif2
+      to: pool2
+      routers: [882, 1470]
+    - from: pool2
+      to: token_conv2
+      routers: [1470, 1617]
+    - from: token_conv2
+      to: token_lif3
+      routers: [1617, 1911]
+    - from: token_lif3
+      to: pool3
+      routers: [1911, 2205]
+    - from: pool3
+      to: token_conv3
+      routers: [2205, 2278]
+    - from: token_conv3
+      to: token_lif4
+      routers: [2278, 2425]
+    - from: token_lif4
+      to: pool4
+      routers: [2425, 2572]
+    - from: pool4
+      to: token_conv4
+      routers: [2572, 2609]
+    - from: token_conv4
+      to: b0_proj_lif
+      routers: [2609, 2646]
+    - from: b0_proj_lif
+      to: b0_q_pre
+      routers: [2646, 2682]
+    - from: b0_q_pre
+      to: b0_q
+      routers: [2682, 2719]
+    - from: b0_proj_lif
+      to: b0_k_pre
+      routers: [2646, 2756]
+    - from: b0_k_pre
+      to: b0_k
+      routers: [2756, 2793]
+    - from: b0_proj_lif
+      to: b0_v_pre
+      routers: [2646, 2829]
+    - from: b0_v_pre
+      to: b0_v
+      routers: [2829, 2866]
+    - from: b0_q
+      to: b0_attn
+      routers: [2719, 2903]
+    - from: b0_k
+      to: b0_attn
+      routers: [2793, 2903]
+    - from: b0_v
+      to: b0_attn
+      routers: [2866, 2903]
+    - from: b0_attn
+      to: b0_attn_proj
+      routers: [2903, 2940]
+    - from: token_conv4
+      to: b0_res1
+      routers: [2609, 2976]
+    - from: b0_attn_proj
+      to: b0_res1
+      routers: [2940, 2976]
+    - from: b0_res1
+      to: b0_mlp1_lif
+      routers: [2976, 3013]
+    - from: b0_mlp1_lif
+      to: b0_mlp1
+      routers: [3013, 3050]
+    - from: b0_mlp1
+      to: b0_mlp2_lif
+      routers: [3050, 3197]
+    - from: b0_mlp2_lif
+      to: b0_mlp2
+      routers: [3197, 3344]
+    - from: b0_res1
+      to: b0_res2
+      routers: [2976, 3381]
+    - from: b0_mlp2
+      to: b0_res2
+      routers: [3344, 3381]
+    - from: b0_res2
+      to: b1_proj_lif
+      routers: [3381, 3417]
+    - from: b1_proj_lif
+      to: b1_q_pre
+      routers: [3417, 3454]
+    - from: b1_q_pre
+      to: b1_q
+      routers: [3454, 3491]
+    - from: b1_proj_lif
+      to: b1_k_pre
+      routers: [3417, 3528]
+    - from: b1_k_pre
+      to: b1_k
+      routers: [3528, 3564]
+    - from: b1_proj_lif
+      to: b1_v_pre
+      routers: [3417, 3601]
+    - from: b1_v_pre
+      to: b1_v
+      routers: [3601, 3638]
+    - from: b1_q
+      to: b1_attn
+      routers: [3491, 3675]
+    - from: b1_k
+      to: b1_attn
+      routers: [3564, 3675]
+    - from: b1_v
+      to: b1_attn
+      routers: [3638, 3675]
+    - from: b1_attn
+      to: b1_attn_proj
+      routers: [3675, 3711]
+    - from: b0_res2
+      to: b1_res1
+      routers: [3381, 3748]
+    - from: b1_attn_proj
+      to: b1_res1
+      routers: [3711, 3748]
+    - from: b1_res1
+      to: b1_mlp1_lif
+      routers: [3748, 3785]
+    - from: b1_mlp1_lif
+      to: b1_mlp1
+      routers: [3785, 3822]
+    - from: b1_mlp1
+      to: b1_mlp2_lif
+      routers: [3822, 3969]
+    - from: b1_mlp2_lif
+      to: b1_mlp2
+      routers: [3969, 4116]
+    - from: b1_res1
+      to: b1_res2
+      routers: [3748, 4152]
+    - from: b1_mlp2
+      to: b1_res2
+      routers: [4116, 4152]
+    - from: b1_res2
+      to: b2_proj_lif
+      routers: [4152, 4189]
+    - from: b2_proj_lif
+      to: b2_q_pre
+      routers: [4189, 4226]
+    - from: b2_q_pre
+      to: b2_q
+      routers: [4226, 4263]
+    - from: b2_proj_lif
+      to: b2_k_pre
+      routers: [4189, 4299]
+    - from: b2_k_pre
+      to: b2_k
+      routers: [4299, 4336]
+    - from: b2_proj_lif
+      to: b2_v_pre
+      routers: [4189, 4373]
+    - from: b2_v_pre
+      to: b2_v
+      routers: [4373, 4410]
+    - from: b2_q
+      to: b2_attn
+      routers: [4263, 4446]
+    - from: b2_k
+      to: b2_attn
+      routers: [4336, 4446]
+    - from: b2_v
+      to: b2_attn
+      routers: [4410, 4446]
+    - from: b2_attn
+      to: b2_attn_proj
+      routers: [4446, 4483]
+    - from: b1_res2
+      to: b2_res1
+      routers: [4152, 4520]
+    - from: b2_attn_proj
+      to: b2_res1
+      routers: [4483, 4520]
+    - from: b2_res1
+      to: b2_mlp1_lif
+      routers: [4520, 4557]
+    - from: b2_mlp1_lif
+      to: b2_mlp1
+      routers: [4557, 4593]
+    - from: b2_mlp1
+      to: b2_mlp2_lif
+      routers: [4593, 4740]
+    - from: b2_mlp2_lif
+      to: b2_mlp2
+      routers: [4740, 4887]
+    - from: b2_res1
+      to: b2_res2
+      routers: [4520, 4924]
+    - from: b2_mlp2
+      to: b2_res2
+      routers: [4887, 4924]
+    - from: b2_res2
+      to: b3_proj_lif
+      routers: [4924, 4961]
+    - from: b3_proj_lif
+      to: b3_q_pre
+      routers: [4961, 4998]
+    - from: b3_q_pre
+      to: b3_q
+      routers: [4998, 5034]
+    - from: b3_proj_lif
+      to: b3_k_pre
+      routers: [4961, 5071]
+    - from: b3_k_pre
+      to: b3_k
+      routers: [5071, 5108]
+    - from: b3_proj_lif
+      to: b3_v_pre
+      routers: [4961, 5145]
+    - from: b3_v_pre
+      to: b3_v
+      routers: [5145, 5181]
+    - from: b3_q
+      to: b3_attn
+      routers: [5034, 5218]
+    - from: b3_k
+      to: b3_attn
+      routers: [5108, 5218]
+    - from: b3_v
+      to: b3_attn
+      routers: [5181, 5218]
+    - from: b3_attn
+      to: b3_attn_proj
+      routers: [5218, 5255]
+    - from: b2_res2
+      to: b3_res1
+      routers: [4924, 5292]
+    - from: b3_attn_proj
+      to: b3_res1
+      routers: [5255, 5292]
+    - from: b3_res1
+      to: b3_mlp1_lif
+      routers: [5292, 5328]
+    - from: b3_mlp1_lif
+      to: b3_mlp1
+      routers: [5328, 5365]
+    - from: b3_mlp1
+      to: b3_mlp2_lif
+      routers: [5365, 5512]
+    - from: b3_mlp2_lif
+      to: b3_mlp2
+      routers: [5512, 5659]
+    - from: b3_res1
+      to: b3_res2
+      routers: [5292, 5696]
+    - from: b3_mlp2
+      to: b3_res2
+      routers: [5659, 5696]
+    - from: b3_res2
+      to: b4_proj_lif
+      routers: [5696, 5733]
+    - from: b4_proj_lif
+      to: b4_q_pre
+      routers: [5733, 5769]
+    - from: b4_q_pre
+      to: b4_q
+      routers: [5769, 5806]
+    - from: b4_proj_lif
+      to: b4_k_pre
+      routers: [5733, 5843]
+    - from: b4_k_pre
+      to: b4_k
+      routers: [5843, 5880]
+    - from: b4_proj_lif
+      to: b4_v_pre
+      routers: [5733, 5916]
+    - from: b4_v_pre
+      to: b4_v
+      routers: [5916, 5953]
+    - from: b4_q
+      to: b4_attn
+      routers: [5806, 5990]
+    - from: b4_k
+      to: b4_attn
+      routers: [5880, 5990]
+    - from: b4_v
+      to: b4_attn
+      routers: [5953, 5990]
+    - from: b4_attn
+      to: b4_attn_proj
+      routers: [5990, 6027]
+    - from: b3_res2
+      to: b4_res1
+      routers: [5696, 6063]
+    - from: b4_attn_proj
+      to: b4_res1
+      routers: [6027, 6063]
+    - from: b4_res1
+      to: b4_mlp1_lif
+      routers: [6063, 6100]
+    - from: b4_mlp1_lif
+      to: b4_mlp1
+      routers: [6100, 6137]
+    - from: b4_mlp1
+      to: b4_mlp2_lif
+      routers: [6137, 6284]
+    - from: b4_mlp2_lif
+      to: b4_mlp2
+      routers: [6284, 6431]
+    - from: b4_res1
+      to: b4_res2
+      routers: [6063, 6468]
+    - from: b4_mlp2
+      to: b4_res2
+      routers: [6431, 6468]
+    - from: b4_res2
+      to: b5_proj_lif
+      routers: [6468, 6504]
+    - from: b5_proj_lif
+      to: b5_q_pre
+      routers: [6504, 6541]
+    - from: b5_q_pre
+      to: b5_q
+      routers: [6541, 6578]
+    - from: b5_proj_lif
+      to: b5_k_pre
+      routers: [6504, 6615]
+    - from: b5_k_pre
+      to: b5_k
+      routers: [6615, 6651]
+    - from: b5_proj_lif
+      to: b5_v_pre
+      routers: [6504, 6688]
+    - from: b5_v_pre
+      to: b5_v
+      routers: [6688, 6725]
+    - from: b5_q
+      to: b5_attn
+      routers: [6578, 6762]
+    - from: b5_k
+      to: b5_attn
+      routers: [6651, 6762]
+    - from: b5_v
+      to: b5_attn
+      routers: [6725, 6762]
+    - from: b5_attn
+      to: b5_attn_proj
+      routers: [6762, 6798]
+    - from: b4_res2
+      to: b5_res1
+      routers: [6468, 6835]
+    - from: b5_attn_proj
+      to: b5_res1
+      routers: [6798, 6835]
+    - from: b5_res1
+      to: b5_mlp1_lif
+      routers: [6835, 6872]
+    - from: b5_mlp1_lif
+      to: b5_mlp1
+      routers: [6872, 6909]
+    - from: b5_mlp1
+      to: b5_mlp2_lif
+      routers: [6909, 7056]
+    - from: b5_mlp2_lif
+      to: b5_mlp2
+      routers: [7056, 7203]
+    - from: b5_res1
+      to: b5_res2
+      routers: [6835, 7239]
+    - from: b5_mlp2
+      to: b5_res2
+      routers: [7203, 7239]
+    - from: b5_res2
+      to: b6_proj_lif
+      routers: [7239, 7276]
+    - from: b6_proj_lif
+      to: b6_q_pre
+      routers: [7276, 7313]
+    - from: b6_q_pre
+      to: b6_q
+      routers: [7313, 7350]
+    - from: b6_proj_lif
+      to: b6_k_pre
+      routers: [7276, 7386]
+    - from: b6_k_pre
+      to: b6_k
+      routers: [7386, 7423]
+    - from: b6_proj_lif
+      to: b6_v_pre
+      routers: [7276, 7460]
+    - from: b6_v_pre
+      to: b6_v
+      routers: [7460, 7497]
+    - from: b6_q
+      to: b6_attn
+      routers: [7350, 7533]
+    - from: b6_k
+      to: b6_attn
+      routers: [7423, 7533]
+    - from: b6_v
+      to: b6_attn
+      routers: [7497, 7533]
+    - from: b6_attn
+      to: b6_attn_proj
+      routers: [7533, 7570]
+    - from: b5_res2
+      to: b6_res1
+      routers: [7239, 7607]
+    - from: b6_attn_proj
+      to: b6_res1
+      routers: [7570, 7607]
+    - from: b6_res1
+      to: b6_mlp1_lif
+      routers: [7607, 7644]
+    - from: b6_mlp1_lif
+      to: b6_mlp1
+      routers: [7644, 7680]
+    - from: b6_mlp1
+      to: b6_mlp2_lif
+      routers: [7680, 7827]
+    - from: b6_mlp2_lif
+      to: b6_mlp2
+      routers: [7827, 7974]
+    - from: b6_res1
+      to: b6_res2
+      routers: [7607, 8011]
+    - from: b6_mlp2
+      to: b6_res2
+      routers: [7974, 8011]
+    - from: b6_res2
+      to: b7_proj_lif
+      routers: [8011, 8048]
+    - from: b7_proj_lif
+      to: b7_q_pre
+      routers: [8048, 8085]
+    - from: b7_q_pre
+      to: b7_q
+      routers: [8085, 8121]
+    - from: b7_proj_lif
+      to: b7_k_pre
+      routers: [8048, 8158]
+    - from: b7_k_pre
+      to: b7_k
+      routers: [8158, 8195]
+    - from: b7_proj_lif
+      to: b7_v_pre
+      routers: [8048, 8232]
+    - from: b7_v_pre
+      to: b7_v
+      routers: [8232, 8268]
+    - from: b7_q
+      to: b7_attn
+      routers: [8121, 8305]
+    - from: b7_k
+      to: b7_attn
+      routers: [8195, 8305]
+    - from: b7_v
+      to: b7_attn
+      routers: [8268, 8305]
+    - from: b7_attn
+      to: b7_attn_proj
+      routers: [8305, 8342]
+    - from: b6_res2
+      to: b7_res1
+      routers: [8011, 8379]
+    - from: b7_attn_proj
+      to: b7_res1
+      routers: [8342, 8379]
+    - from: b7_res1
+      to: b7_mlp1_lif
+      routers: [8379, 8415]
+    - from: b7_mlp1_lif
+      to: b7_mlp1
+      routers: [8415, 8452]
+    - from: b7_mlp1
+      to: b7_mlp2_lif
+      routers: [8452, 8599]
+    - from: b7_mlp2_lif
+      to: b7_mlp2
+      routers: [8599, 8746]
+    - from: b7_res1
+      to: b7_res2
+      routers: [8379, 8783]
+    - from: b7_mlp2
+      to: b7_res2
+      routers: [8746, 8783]

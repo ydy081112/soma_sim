@@ -19,6 +19,8 @@ struct LayerStats {
     std::uint64_t noc_hops = 0;
     std::uint64_t synaptic_updates = 0;
     std::uint64_t attention_updates = 0;
+    std::uint64_t kv_attention_updates = 0;
+    std::uint64_t q_attention_updates = 0;
     double host_latency_s = 0.0;
 };
 
@@ -30,6 +32,8 @@ struct TimestepStats {
     std::uint64_t noc_hops = 0;
     std::uint64_t synaptic_updates = 0;
     std::uint64_t attention_updates = 0;
+    std::uint64_t kv_attention_updates = 0;
+    std::uint64_t q_attention_updates = 0;
     double host_latency_s = 0.0;
     SimTime hw_start_time = 0;
     SimTime hw_end_time = 0;
@@ -99,7 +103,8 @@ public:
                              SimTime total_hw_latency);
     void add_attention(std::size_t layer, std::uint32_t timestep,
                        std::uint64_t updates, SimTime service_hw_latency,
-                       const std::string& kind);
+                       const std::string& kind, std::uint64_t kv_updates = 0,
+                       std::uint64_t q_updates = 0);
     void add_data_energy(const NocTiming& noc, std::uint64_t updates,
                          ConnectionType connection_type);
     void add_neuron_energy(std::uint64_t updated_neurons);
@@ -130,6 +135,8 @@ private:
     std::uint64_t noc_hops_ = 0;
     std::uint64_t synaptic_updates_ = 0;
     std::uint64_t attention_updates_ = 0;
+    std::uint64_t kv_attention_updates_ = 0;
+    std::uint64_t q_attention_updates_ = 0;
     std::uint64_t physical_core_count_ = 0;
     std::uint64_t mapped_tile_count_ = 0;
     double host_latency_s_ = 0.0;

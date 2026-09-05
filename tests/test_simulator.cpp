@@ -9,6 +9,7 @@
 #include "soma/input_encoder.hpp"
 #include "soma/runtime/spatial_template.hpp"
 #include "soma/runtime/incremental_spike_matmul.hpp"
+#include "soma/runtime/timestep_spike_attention.hpp"
 #include "soma/sim/spike_queue.hpp"
 
 #include <cmath>
@@ -79,6 +80,20 @@ int main(int argc, char** argv) {
             require(qk.accumulated_output() == expected,
                     "incremental QK equals cumulative tracer outer product at every timestep");
         }
+
+        // SSA 不保留跨 timestep shadow：每一帧都严格计算 Q @ (K^T @ V)。
+        soma::TimestepSpikeAttention ssa(1, 2, 2, 0, 4, 0.125F);
+        const std::vector<std::int8_t> ssa_q = {1, -1, 0, 1};
+        const std::vector<std::int8_t> ssa_k = {1, 0, -1, 1};
+        const std::vector<std::int8_t> ssa_v = {0, 1, 1, -1};
+        const auto ssa_first = ssa.update(ssa_q, ssa_k, ssa_v);
+        const auto ssa_zero = ssa.update(std::vector<std::int8_t>(4),
+                                         std::vector<std::int8_t>(4),
+                                         std::vector<std::int8_t>(4));
+        require(ssa_first.kv_updates == 8 && ssa_first.q_updates == 8 &&
+                    ssa_first.output == std::vector<float>({-0.25F, 0.375F, 0.125F, -0.125F}) &&
+                    ssa_zero.output == std::vector<float>(4, 0.0F),
+                "SSA 每 timestep 独立，KV 不跨帧保留");
         soma::IncrementalSpikeMatmul av(
             soma::IncrementalSpikeMatmul::Kind::Av, 1, 2, 2, 2);
         shadow_l.assign(4, 0); shadow_r.assign(4, 0);
@@ -129,6 +144,30 @@ int main(int argc, char** argv) {
                 "existing hardware keeps signed threshold comparison by default");
         require(hardware.noc.synchronization_hw_latency(70) == 1'800'000,
                 "timestep synchronization latency table");
+        // local_state_buffer 是当前 timestep 的 local Cx State，不发 spike packet；用于
+        // multi-valued shortcut 到后续 pre-LIF 的加法。
+        soma::LayerMapping state_map;
+        state_map.id = "local_state"; state_map.op = soma::LayerOp::Linear;
+        state_map.neurons = 1; state_map.source_neurons = 1;
+        state_map.output_channels = 1; state_map.neuron_model = "multi_valued_state";
+        soma::LayerWeights state_weights;
+        state_weights.bias = {0.25F};
+        soma::LayerWeights local_weight;
+        local_weight.connection_type = soma::ConnectionType::LocalStateBuffer;
+        local_weight.source_neurons = 1; local_weight.identity_weight = {4.0F};
+        soma::Core state_core(state_map, hardware, state_weights, {0, 0, 0, 0}, 0, 1);
+        state_core.receive_local_state(0, 0.0F, local_weight);
+        const auto state_frame = state_core.process_timestep(1, 0);
+        require(state_frame.local_state_values == std::vector<float>({0.25F}) &&
+                    state_frame.firings.empty(),
+                "local Cx State buffer 只产生本 timestep multi-valued activation");
+        soma::LayerMapping lif_map = state_map;
+        lif_map.id = "lif"; lif_map.neuron_model = "lif"; lif_map.threshold = 1.0F;
+        soma::LayerWeights lif_weights;
+        soma::Core lif_core(lif_map, hardware, lif_weights, {1, 0, 0, 1}, 0, 1);
+        lif_core.receive_local_state(0, state_frame.local_state_values[0], local_weight);
+        require(lif_core.process_timestep(1, 0).firings.size() == 1,
+                "local_state_buffer 直接累加到随后 LIF 的当前 timestep buffer");
         const auto truenorth_hardware = soma::HardwareConfig::load(
             root + "/arch/truenorth.yaml");
         require(truenorth_hardware.core.max_neurons == 256 &&

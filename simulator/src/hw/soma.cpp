@@ -49,7 +49,7 @@ SomaState::SomaState(std::size_t neurons, float threshold, float leak, std::stri
 }
 
 SomaNeuronResult SomaState::process_neuron(std::uint64_t neuron, float synaptic_input,
-                                           bool has_pending_input, float bias) {
+                                           bool has_pending_input, float bias, float input_scale) {
     if (neuron >= voltage_.size()) throw std::runtime_error("soma neuron 越界");
     const auto index = static_cast<std::size_t>(neuron);
     // pending 标志保留“收到过但累加和为 0”的更新；已有膜电位也需要继续做 timestep transition。
@@ -63,7 +63,7 @@ SomaNeuronResult SomaState::process_neuron(std::uint64_t neuron, float synaptic_
         voltage_[index] = std::trunc(voltage_[index] / membrane_quantization_step_) *
                           membrane_quantization_step_;
     }
-    voltage_[index] += synaptic_input + bias;
+    voltage_[index] += input_scale * (synaptic_input + bias);
     const bool positive_saturation = voltage_[index] > membrane_max_;
     voltage_[index] = std::max(membrane_min_, std::min(membrane_max_, voltage_[index]));
     if (st_bif_) {

@@ -143,11 +143,18 @@ void Statistics::add_soma_hw_latency(std::uint32_t step, SimTime service_hw_late
 
 void Statistics::add_attention(std::size_t layer, std::uint32_t step,
                                std::uint64_t updates, SimTime service_hw_latency,
-                               const std::string& kind) {
+                               const std::string& kind, std::uint64_t kv_updates,
+                               std::uint64_t q_updates) {
     attention_updates_ += updates;
+    kv_attention_updates_ += kv_updates;
+    q_attention_updates_ += q_updates;
     layers_.at(layer).attention_updates += updates;
+    layers_.at(layer).kv_attention_updates += kv_updates;
+    layers_.at(layer).q_attention_updates += q_updates;
     auto& metric = timestep(step);
     metric.attention_updates += updates;
+    metric.kv_attention_updates += kv_updates;
+    metric.q_attention_updates += q_updates;
     metric.attention_service_hw_latency += service_hw_latency;
     breakdown_.attention_service_hw_latency += service_hw_latency;
     const auto energy = kind == "qk" ? hardware_.energy.qk_attention_pj
@@ -206,6 +213,8 @@ void Statistics::write(const std::string& output_dir, const std::vector<float>& 
             << "  \"noc_hops\": " << noc_hops_ << ",\n"
             << "  \"synaptic_updates\": " << synaptic_updates_ << ",\n"
             << "  \"attention_updates\": " << attention_updates_ << ",\n"
+            << "  \"kv_attention_updates\": " << kv_attention_updates_ << ",\n"
+            << "  \"q_attention_updates\": " << q_attention_updates_ << ",\n"
             << "  \"host_latency_s\": " << host_latency_s_ << ",\n"
             << "  \"host_processed_spikes_per_sec\": "
             << host_rate(processed_spikes_, host_latency_s_) << ",\n"
@@ -249,7 +258,7 @@ void Statistics::write(const std::string& output_dir, const std::vector<float>& 
     summary << "\n}\n";
 
     std::ofstream layer_csv(std::filesystem::path(output_dir) / "layer_metrics.csv");
-    layer_csv << "layer_id,processed_spikes,emitted_spikes,packets,noc_hops,synaptic_updates,attention_updates,"
+    layer_csv << "layer_id,processed_spikes,emitted_spikes,packets,noc_hops,synaptic_updates,attention_updates,kv_attention_updates,q_attention_updates,"
                  "host_latency_s,host_processed_spikes_per_sec\n";
     layer_csv << std::setprecision(12);
     for (std::size_t i = 0; i < layers_.size(); ++i) {
@@ -257,12 +266,13 @@ void Statistics::write(const std::string& output_dir, const std::vector<float>& 
         layer_csv << mapping_.layers[i].id << ',' << metric.processed_spikes << ','
                   << metric.emitted_spikes << ',' << metric.packets << ',' << metric.noc_hops << ','
                   << metric.synaptic_updates << ',' << metric.attention_updates << ','
+                  << metric.kv_attention_updates << ',' << metric.q_attention_updates << ','
                   << metric.host_latency_s << ','
                   << host_rate(metric.processed_spikes, metric.host_latency_s) << '\n';
     }
 
     std::ofstream timestep_csv(std::filesystem::path(output_dir) / "timestep_metrics.csv");
-    timestep_csv << "timestep,processed_spikes,emitted_spikes,packets,noc_hops,synaptic_updates,attention_updates,"
+    timestep_csv << "timestep,processed_spikes,emitted_spikes,packets,noc_hops,synaptic_updates,attention_updates,kv_attention_updates,q_attention_updates,"
                     "host_latency_s,host_processed_spikes_per_sec,hardware_latency_ps,"
                     "hardware_end_time_ps,soma_service_cycles,synapse_service_cycles,attention_service_cycles,"
                     "noc_traversal_cycles,noc_congestion_cycles,timestep_synchronization_cycles\n";
@@ -273,7 +283,8 @@ void Statistics::write(const std::string& output_dir, const std::vector<float>& 
         const auto& metric = timesteps_[i];
         timestep_csv << i << ',' << metric.processed_spikes << ',' << metric.emitted_spikes << ','
                      << metric.packets << ',' << metric.noc_hops << ',' << metric.synaptic_updates << ','
-                     << metric.attention_updates << ','
+                     << metric.attention_updates << ',' << metric.kv_attention_updates << ','
+                     << metric.q_attention_updates << ','
                      << metric.host_latency_s << ','
                      << host_rate(metric.processed_spikes, metric.host_latency_s) << ','
                      << (metric.hw_end_time - metric.hw_start_time) << ',' << metric.hw_end_time << ','

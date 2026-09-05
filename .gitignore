@@ -12,6 +12,12 @@
 /input/truenorth_vgg16_*.sqlite
 /input/truenorth_vgg16_*.npz
 /input/truenorth_vgg16_*input_spike*.csv
+/input/spikingformer_runtime.npz
+/input/spikingformer_imagenet_weights.npz
+/input/spikingformer_imagenet_input_spike.csv
+/input/input_spike.csv
+/input/vit_block00_runtime.npz
+/input/vit_block00_input_spike.csv
 /reference/*.npz
 /output_vgg16/
 /docs/background.md

@@ -1,0 +1,92 @@
+# Spikingformer 仅扩大可映射 PE 数；每 Core max_neurons 和所有时序/能耗保持 Loihi-like 参数。
+architecture:
+  name: configurable_large_mesh
+  execution_mode: timestep_synchronization
+  frequency_mhz: 1000
+  technology: 14nm
+  voltage_v: 0.9
+  noc:
+    topology: mesh
+    rows: 256
+    cols: 256
+    routing: static
+    congestion_model: destination_flow
+    virtual_channels: 1
+    input_buffer_depth: 16
+    flit_width_bits: 64
+    spike_per_flit: 1
+    pipeline:
+      input_queue_hardware_latency: 0 ps
+      route_compute_hardware_latency: 0 ps
+      switch_allocate_hardware_latency: 0 ps
+      switch_traversal_hardware_latency: 0 ps
+    link:
+      hardware_latency: 4.1 ns
+      directional_hardware_latency:
+        north: 6.5 ns
+        east: 4.1 ns
+        south: 6.5 ns
+        west: 4.1 ns
+      busy_hardware_latency: 4.1 ns
+      send:
+        req: true
+        data: true
+      receive:
+        ack: true
+        credit: true
+    synchronization:
+      model: table
+      hardware_latency_1: 0.6 us
+      hardware_latency_2: 1.0 us
+      hardware_latency_4: 1.4 us
+      hardware_latency_29: 1.8 us
+  core:
+    pe_count: 16384
+    cores_per_pe: 4
+    max_neurons: 1024
+    input_buffer_depth: 16
+    input_fifo: true
+    fifo_per_core: true
+    source_packet_fifo: false
+    fifo_num_per_core: 1
+    fifo_depth_per_core: 16
+    synapse_sram_bytes: 131072
+    hardware_latency:
+      axon_in: 16.0 ns
+      axon_out: 5.1 ns
+      sram_read: 0 ps
+      sram_write: 0 ps
+      synapse:
+        spatial: 3.1 ns
+        dense: 3.8 ns
+        identity: 4.7 ns
+      soma_access: 6.0 ns
+      soma_update: 3.7 ns
+      soma_fire: 30.0 ns
+      attention:
+        qk_process: 3.8 ns
+        qkv_process: 3.8 ns
+    neuron:
+      model: leaky_integrate_fire
+      threshold: 1.0
+      leak: 1.0
+      reset: soft
+  energy_pj:
+    router_hop: 0.0
+    link_hop: 3.0
+    directional_link:
+      north: 4.2
+      east: 3.0
+      south: 4.2
+      west: 3.0
+    axon_in: 0.0
+    axon_out: 111.0
+    sram_read: 0.0
+    sram_write: 0.0
+    synapse: 24.0
+    synapse_identity: 33.6
+    soma_update: 72.8
+    soma_fire: 69.3
+    attention:
+      qk_process: 35.5
+      qkv_process: 35.5

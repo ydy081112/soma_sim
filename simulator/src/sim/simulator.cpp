@@ -90,6 +90,12 @@ void Simulator::prepare_input_timesteps() {
 void Simulator::inject_timestep(std::uint32_t timestep, SimTime hw_start_time) {
     const auto group = input_by_timestep_.find(timestep);
     if (group == input_by_timestep_.end()) return;
+    if (mapping_.stream_input_records) {
+        input_stream_next_[timestep] = 0;
+        input_stream_hw_start_ = hw_start_time;
+        enqueue_next_input_record(timestep, hw_start_time);
+        return;
+    }
     for (const auto index : group->second) {
         const auto& record = input_.spikes[index];
         const auto source = mapping_.index_of(record.layer_id);
@@ -105,6 +111,23 @@ void Simulator::inject_timestep(std::uint32_t timestep, SimTime hw_start_time) {
     }
 }
 
+void Simulator::enqueue_next_input_record(std::uint32_t timestep, SimTime hw_start_time) {
+    const auto group = input_by_timestep_.find(timestep);
+    if (group == input_by_timestep_.end()) return;
+    auto& next = input_stream_next_[timestep];
+    if (next >= group->second.size()) return;
+    const auto& record = input_.spikes[group->second[next++]];
+    const auto source = mapping_.index_of(record.layer_id);
+    const auto& layer = mapping_.layer(source);
+    if (layer.op != LayerOp::Input || !layer.virtual_input ||
+        record.source_neuron >= layer.neurons) {
+        throw std::runtime_error("stream input CSV record 非法");
+    }
+    stats_.record_emit(source, record.timestep, hw_start_time);
+    enqueue_packets(source, record.source_neuron, record.value, record.timestep,
+                    hw_start_time, hw_start_time, record.spike_id, true);
+}
+
 void Simulator::process_neurons(std::uint32_t timestep, SimTime hw_start_time) {
     // 输入 packet 可先以 timestep start 为时标入队；此阶段只生成 firing，不消费 queue。
     // 所有 Core 读取上一 timestep accumulation，并保留各自 neuron loop 中的真实完成时刻。
@@ -112,6 +135,7 @@ void Simulator::process_neurons(std::uint32_t timestep, SimTime hw_start_time) {
     for (const auto& layer : mapping_.layers) {
         if (layer.op == LayerOp::Input) continue;
         const auto layer_host_start = std::chrono::steady_clock::now();
+        std::vector<std::pair<std::uint64_t, std::vector<float>>> local_state_outputs;
         for (auto& core : layer_runtime_.at(layer.index).cores) {
             auto result = core->process_timestep(timestep, hw_start_time);
             stats_.add_soma_hw_latency(timestep, result.hw_soma_service_latency,
@@ -120,11 +144,17 @@ void Simulator::process_neurons(std::uint32_t timestep, SimTime hw_start_time) {
             if (result.attention_updates != 0) {
                 stats_.add_attention(layer.index, timestep, result.attention_updates,
                                      result.hw_attention_service_latency,
-                                     layer.attention_kind);
+                                     layer.attention_kind, result.kv_attention_updates,
+                                     result.q_attention_updates);
             }
             stats_.record_neuron_processing(layer.index, timestep, result.hw_finish_time);
+            if (!result.local_state_values.empty())
+                local_state_outputs.emplace_back(core->physical_neuron_begin(),
+                                                 std::move(result.local_state_values));
             pending_firings.emplace_back(layer.index, std::move(result.firings));
         }
+        for (const auto& [physical_begin, values] : local_state_outputs)
+            push_local_state(layer.index, physical_begin, values);
         const auto layer_host_end = std::chrono::steady_clock::now();
         stats_.record_host_latency(
             layer.index, timestep,
@@ -132,6 +162,27 @@ void Simulator::process_neurons(std::uint32_t timestep, SimTime hw_start_time) {
     }
     for (const auto& [layer, firings] : pending_firings) {
         push_firings(layer, timestep, firings);
+    }
+}
+
+void Simulator::push_local_state(std::size_t layer_index, std::uint64_t physical_begin,
+                            const std::vector<float>& values) {
+    // mapping 指定的 local_state_buffer 是同一 logical timestep 的 Core-local 状态传递；
+    // 故意绕开 SpikeQueue、source axon、NoC 与 packet/energy 统计。
+    for (const auto connection_index : mapping_.outgoing(layer_index)) {
+        const auto& connection = mapping_.connections.at(connection_index);
+        if (connection.type != ConnectionType::LocalStateBuffer) continue;
+        const auto target_index = mapping_.index_of(connection.to);
+        const auto& target = mapping_.layer(target_index);
+        const auto& weights = weights_.connection(connection_index);
+        for (std::size_t local = 0; local < values.size(); ++local) {
+            const auto physical = physical_begin + local;
+            const auto source_neuron = mapping_.layer(layer_index).logical_neuron_index(physical);
+            const auto target_physical = target.physical_neuron_index(source_neuron);
+            const auto partition = static_cast<std::size_t>(target_physical / hardware_.core.max_neurons);
+            layer_runtime_.at(target_index).cores.at(partition)->receive_local_state(
+                source_neuron, values[local], weights);
+        }
     }
 }
 
@@ -159,12 +210,13 @@ PhysicalCoreAddress Simulator::source_core_address(std::size_t layer_index,
 void Simulator::enqueue_packets(std::size_t source_layer, std::uint64_t source_neuron,
                                 float value, std::uint32_t timestep,
                                 SimTime generated_time, SimTime current_time,
-                                std::uint64_t spike_id) {
+                                std::uint64_t spike_id, bool input_record_streaming) {
     const auto& source_mapping = mapping_.layer(source_layer);
     const bool direct_input = source_mapping.direct_input;
     const auto mapped_source_address = direct_input
                                            ? PhysicalCoreAddress{}
                                            : source_core_address(source_layer, source_neuron);
+    std::vector<Spike> streamed_packets;
     for (const auto connection_index : mapping_.outgoing(source_layer)) {
         const auto& connection = mapping_.connections.at(connection_index);
         const auto target_index = mapping_.index_of(connection.to);
@@ -200,9 +252,18 @@ void Simulator::enqueue_packets(std::size_t source_layer, std::uint64_t source_n
             packet.destination_partition = destination_partition;
             packet.destination_axon = destination_axon;
             packet.value = value;
-            if (hardware_.core.source_packet_fifo && !direct_input) stage_source_packet(std::move(packet));
+            if (input_record_streaming) streamed_packets.push_back(std::move(packet));
+            else if (hardware_.core.source_packet_fifo && !direct_input) stage_source_packet(std::move(packet));
             else queue_.push(std::move(packet));
         });
+    }
+    if (input_record_streaming) {
+        if (streamed_packets.empty()) {
+            enqueue_next_input_record(timestep, generated_time);
+        } else {
+            streamed_packets.back().input_record_last = true;
+            for (auto& packet : streamed_packets) queue_.push(std::move(packet));
+        }
     }
 }
 
@@ -276,14 +337,21 @@ void Simulator::process_data(Spike& spike) {
     spike.current_time = receive.hw_finish_time;
     const auto receive_service = receive.hw_axon_in_service_latency +
                                  receive.hw_synapse_service_latency;
-    routers_.record_destination_processing(
-        receive.hw_finish_time - receive_service, receive_service);
+    // direct virtual input 未进入 NoC/FIFO resource table，不能对其执行 release；
+    // 普通 mapped source packet 仍按既有 destination processing 记录。
+    if (!direct_input) {
+        routers_.record_destination_processing(
+            receive.hw_finish_time - receive_service, receive_service);
+    }
 
     stats_.add_synapse_hw_latency(spike.timestep, receive.hw_synapse_service_latency,
                                   receive.hw_compute_latency);
     stats_.add_data_energy(noc, receive.synaptic_updates, connection.hardware_type);
     stats_.record_packet(target_index, spike.timestep, receive.synaptic_updates,
                          noc, receive.hw_finish_time);
+    if (spike.input_record_last && mapping_.stream_input_records) {
+        enqueue_next_input_record(spike.timestep, input_stream_hw_start_);
+    }
     if (hardware_.core.source_packet_fifo && !direct_input) {
         release_next_source_packet(source.global_core);
     }

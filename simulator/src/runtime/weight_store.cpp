@@ -101,7 +101,8 @@ WeightStore WeightStore::load(const std::string& path, const MappingConfig& mapp
             // operand packet 只携带 signed spike；shadow 和增量算术位于目标 Core。
             weights.attention_operand = connection.operand;
             weights.attention_operand_layout = connection.operand_layout;
-        } else if (connection.type == ConnectionType::Identity) {
+        } else if (connection.type == ConnectionType::Identity ||
+                   connection.type == ConnectionType::LocalStateBuffer) {
             weights.identity_weight = archive.at(prefix + "_weight").as_f32();
             if (weights.identity_weight.size() != 1 &&
                 weights.identity_weight.size() != layer.output_channels &&

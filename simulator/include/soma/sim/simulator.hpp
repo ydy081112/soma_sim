@@ -64,19 +64,25 @@ private:
     std::vector<std::uint8_t> source_packet_active_;
     Statistics stats_;
     std::map<std::uint32_t, std::vector<std::size_t>> input_by_timestep_;
+    std::map<std::uint32_t, std::size_t> input_stream_next_;
+    SimTime input_stream_hw_start_ = 0;
     std::size_t mapped_tiles_ = 0;
 
     void prepare_input_timesteps();
     void inject_timestep(std::uint32_t timestep, SimTime hw_start_time);
+    void enqueue_next_input_record(std::uint32_t timestep, SimTime hw_start_time);
     void process_data(Spike& spike);
     void enqueue_packets(std::size_t source_layer, std::uint64_t source_neuron,
                          float value, std::uint32_t timestep, SimTime generated_time,
-                         SimTime current_time, std::uint64_t spike_id = 0);
+                         SimTime current_time, std::uint64_t spike_id = 0,
+                         bool input_record_streaming = false);
     void stage_source_packet(Spike packet);
     void release_next_source_packet(std::uint32_t source_core);
     void process_neurons(std::uint32_t timestep, SimTime hw_start_time);
     void push_firings(std::size_t layer, std::uint32_t timestep,
                       const std::vector<CoreFiringResult>& firings);
+    void push_local_state(std::size_t layer, std::uint64_t physical_begin,
+                     const std::vector<float>& values);
     SimulationResult run_timestep_synchronization();
     PhysicalCoreAddress source_core_address(std::size_t layer,
                                             std::uint64_t logical_neuron) const;

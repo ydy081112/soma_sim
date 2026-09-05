@@ -23,6 +23,7 @@ ConnectionType parse_connection_type(const std::string& value) {
     if (value == "identity") return ConnectionType::Identity;
     if (value == "crossbar") return ConnectionType::Crossbar;
     if (value == "attention_operand") return ConnectionType::AttentionOperand;
+    if (value == "local_state_buffer") return ConnectionType::LocalStateBuffer;
     throw std::runtime_error("不支持的 connection type: " + value);
 }
 
@@ -42,6 +43,7 @@ MappingConfig MappingConfig::load(const std::string& path) {
     MappingConfig config;
     config.model = yaml::get_string(mapping, "model", "unnamed");
     config.flush_timesteps = u32(mapping, "flush_timesteps", 0);
+    config.stream_input_records = yaml::get_bool(mapping, "stream_input_records", false);
     config.signed_firing_trace = yaml::get_bool(mapping, "signed_firing_trace", false);
     const auto& layers = mapping.at("layers");
     if (!layers.is_sequence()) throw std::runtime_error("mapping.layers 必须是 sequence");
@@ -69,6 +71,7 @@ MappingConfig MappingConfig::load(const std::string& path) {
         layer.weight_prefix = yaml::get_string(node, "weight_prefix", layer.id);
         layer.threshold = static_cast<float>(yaml::get_double(node, "threshold", 1.0));
         layer.leak = static_cast<float>(yaml::get_double(node, "leak", 1.0));
+        layer.input_scale = static_cast<float>(yaml::get_double(node, "input_scale", 1.0));
         layer.neuron_model = yaml::get_string(node, "neuron_model", "lif");
         layer.tracer_min = static_cast<std::int32_t>(yaml::get_double(node, "tracer_min", 0));
         layer.tracer_max = static_cast<std::int32_t>(yaml::get_double(node, "tracer_max", 0));
@@ -83,6 +86,7 @@ MappingConfig MappingConfig::load(const std::string& path) {
             node, "attention_output_layout", "head_row_column");
         layer.attention_accumulation_scale = static_cast<std::int32_t>(
             yaml::get_double(node, "attention_accumulation_scale", 1));
+        layer.attention_scale = static_cast<float>(yaml::get_double(node, "attention_scale", 1.0));
         layer.post_accumulation_rounding = yaml::get_string(
             node, "post_accumulation_rounding", "none");
         layer.reset = yaml::get_string(node, "reset", "soft");
@@ -172,14 +176,18 @@ void MappingConfig::validate(std::uint32_t router_count) const {
         }
         if (layer.membrane_quantization_step < 0.0F)
             throw std::runtime_error(layer.id + ": membrane_quantization_step 不得为负");
-        if (layer.neuron_model != "lif" && layer.neuron_model != "st_bif")
-            throw std::runtime_error(layer.id + ": neuron_model 仅支持 lif/st_bif");
+        if (layer.input_scale <= 0.0F)
+            throw std::runtime_error(layer.id + ": input_scale 必须为正");
+        if (layer.neuron_model != "lif" && layer.neuron_model != "st_bif" &&
+            layer.neuron_model != "multi_valued_state")
+            throw std::runtime_error(layer.id + ": neuron_model 仅支持 lif/st_bif/multi_valued_state");
         if (layer.neuron_model == "st_bif" && layer.leak != 1.0F)
             throw std::runtime_error(layer.id + ": ST-BIF 不允许 leak");
         if (layer.neuron_model == "st_bif" && layer.tracer_min > layer.tracer_max)
             throw std::runtime_error(layer.id + ": tracer range 非法");
         if (layer.operator_type != "standard" &&
-            layer.operator_type != "incremental_spike_matmul")
+            layer.operator_type != "incremental_spike_matmul" &&
+            layer.operator_type != "timestep_spike_attention")
             throw std::runtime_error(layer.id + ": 不支持的 operator_type");
         if (layer.operator_type == "incremental_spike_matmul" &&
             (layer.attention_heads == 0 || layer.attention_rows == 0 ||
@@ -194,6 +202,10 @@ void MappingConfig::validate(std::uint32_t router_count) const {
         if (layer.operator_type == "incremental_spike_matmul" &&
             layer.attention_accumulation_scale <= 0)
             throw std::runtime_error(layer.id + ": attention scale 必须为正");
+        if (layer.operator_type == "timestep_spike_attention" &&
+            (layer.attention_heads == 0 || layer.attention_rows == 0 ||
+             layer.attention_reduction == 0 || layer.neurons != static_cast<std::uint64_t>(layer.attention_heads) * layer.attention_rows * layer.attention_reduction || layer.attention_scale <= 0.0F))
+            throw std::runtime_error(layer.id + ": timestep_spike_attention shape/scale 非法");
         if (layer.post_accumulation_rounding != "none" &&
             layer.post_accumulation_rounding != "nearest_even")
             throw std::runtime_error(layer.id + ": post_accumulation_rounding 仅支持 none/nearest_even");
@@ -215,8 +227,9 @@ void MappingConfig::validate(std::uint32_t router_count) const {
         if (connection.type == ConnectionType::Identity && from.neurons != to.neurons)
             throw std::runtime_error("identity connection 两端 neuron 数必须相同");
         if (connection.type == ConnectionType::AttentionOperand &&
-            (to.operator_type != "incremental_spike_matmul" ||
-             (connection.operand != "lhs" && connection.operand != "rhs")))
+            ((to.operator_type != "incremental_spike_matmul" && to.operator_type != "timestep_spike_attention") ||
+             ((to.operator_type == "incremental_spike_matmul") && connection.operand != "lhs" && connection.operand != "rhs") ||
+             ((to.operator_type == "timestep_spike_attention") && connection.operand != "q" && connection.operand != "k" && connection.operand != "v")))
             throw std::runtime_error("attention_operand 必须指向 attention layer 并声明 lhs/rhs");
         if (connection.type == ConnectionType::AttentionOperand &&
             connection.operand_layout != "flat_internal" &&
@@ -224,6 +237,9 @@ void MappingConfig::validate(std::uint32_t router_count) const {
             connection.operand_layout != "row_head_column" &&
             connection.operand_layout != "head_row_reduction")
             throw std::runtime_error("attention operand_layout 非法");
+        if (connection.type == ConnectionType::LocalStateBuffer &&
+            from.neuron_model != "multi_valued_state")
+            throw std::runtime_error("local_state_buffer 必须由 multi_valued_state layer 发起");
         (void)route(connection.from, connection.to);
     }
     for (const auto& route : routes) {
@@ -260,6 +276,7 @@ std::string to_string(ConnectionType type) {
         case ConnectionType::Identity: return "identity";
         case ConnectionType::Crossbar: return "crossbar";
         case ConnectionType::AttentionOperand: return "attention_operand";
+        case ConnectionType::LocalStateBuffer: return "local_state_buffer";
     }
     return "unknown";
 }

@@ -8,7 +8,7 @@
 namespace soma {
 
 enum class LayerOp { Input, Conv2d, Linear, AvgPool2d, Crossbar };
-enum class ConnectionType { Spatial, Dense, GroupedDense, Identity, Crossbar, AttentionOperand };
+enum class ConnectionType { Spatial, Dense, GroupedDense, Identity, Crossbar, AttentionOperand, LocalStateBuffer };
 
 struct LayerMapping {
     // 一个条目描述一个 layer partition 到 PE/Core/Router 的静态放置。
@@ -32,6 +32,7 @@ struct LayerMapping {
     std::string weight_prefix;
     float threshold = 1.0F;
     float leak = 1.0F;
+    float input_scale = 1.0F;
     std::string neuron_model = "lif";
     std::int32_t tracer_min = 0;
     std::int32_t tracer_max = 0;
@@ -44,6 +45,7 @@ struct LayerMapping {
     std::uint32_t attention_columns = 0;
     std::string attention_output_layout = "head_row_column";
     std::int32_t attention_accumulation_scale = 1;
+    float attention_scale = 1.0F;
     // 可选的 destination timestep accumulation 量化，取值 none/nearest_even。
     std::string post_accumulation_rounding = "none";
     std::string reset = "soft";
@@ -84,6 +86,7 @@ class MappingConfig {
 public:
     std::string model;
     std::uint32_t flush_timesteps = 0;
+    bool stream_input_records = false;
     bool signed_firing_trace = false;
     std::vector<LayerMapping> layers;
     std::vector<ConnectionMapping> connections;

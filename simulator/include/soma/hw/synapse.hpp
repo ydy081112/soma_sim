@@ -81,6 +81,12 @@ public:
             return;
         }
         if (weights.connection_type == ConnectionType::AttentionOperand) {
+            if (destination.operator_type == "timestep_spike_attention") {
+                // SSA 的 K/V 任一 spike 都可能影响任意 query row；各 partition 经 NoC
+                // 收到同 timestep 稀疏 operand，再在 local Core 形成暂态 KV。
+                for (std::uint32_t partition = 0; partition < partition_count; ++partition) visit(partition);
+                return;
+            }
             const auto heads = static_cast<std::uint64_t>(destination.attention_heads);
             const auto rows = static_cast<std::uint64_t>(destination.attention_rows);
             const auto reduction = static_cast<std::uint64_t>(destination.attention_reduction);

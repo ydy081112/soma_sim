@@ -21,6 +21,8 @@ struct Spike {
     std::uint32_t destination_partition = 0;
     std::uint32_t destination_axon = 0;
     float value = 1.0F;
+    // streaming input 时标识一条 CSV record 的最后一个 fan-out packet。
+    bool input_record_last = false;
 };
 
 }  // namespace soma
